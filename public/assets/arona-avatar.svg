@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Arona avatar">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9fd7ff"/>
+      <stop offset="100%" stop-color="#5e8fff"/>
+    </linearGradient>
+    <linearGradient id="hair" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f6f9ff"/>
+      <stop offset="100%" stop-color="#dfe9ff"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="64" cy="64" r="62" fill="url(#bg)"/>
+  <circle cx="64" cy="64" r="57" fill="rgba(255,255,255,0.2)"/>
+
+  <ellipse cx="64" cy="16" rx="22" ry="8" fill="none" stroke="#e8f3ff" stroke-width="4" opacity="0.85"/>
+
+  <path d="M24 62c2-20 17-35 40-35s38 15 40 35v8c0 18-15 33-40 33S24 88 24 70z" fill="url(#hair)"/>
+  <path d="M36 57c0-17 12-28 28-28s28 11 28 28v8c0 14-12 25-28 25S36 79 36 65z" fill="#fff6f2"/>
+
+  <ellipse cx="50" cy="61" rx="5" ry="6.5" fill="#3f78d2"/>
+  <ellipse cx="78" cy="61" rx="5" ry="6.5" fill="#3f78d2"/>
+  <ellipse cx="50" cy="59" rx="1.6" ry="2.1" fill="#ffffff"/>
+  <ellipse cx="78" cy="59" rx="1.6" ry="2.1" fill="#ffffff"/>
+
+  <path d="M57 77c2 2 12 2 14 0" stroke="#f39cb7" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+
+  <path d="M30 52c3-17 17-29 34-29 8 0 16 3 22 8-5 0-9 1-14 4-3 2-6 6-8 10-4-2-8-3-12-3-9 0-16 4-22 10z" fill="#ecf4ff" opacity="0.88"/>
+</svg>
