@@ -11,18 +11,66 @@ import { WebSocket } from "ws";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
-const SESSIONS = new Map(); 
+const SESSIONS = new Map();
+
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+}
+
+const SESSION_TTL_MS = parsePositiveInt(process.env.SESSION_TTL_MS || "86400000", 86_400_000);
+const SESSION_CLEANUP_INTERVAL_MS = parsePositiveInt(process.env.SESSION_CLEANUP_INTERVAL_MS || "300000", 300_000);
+const GATEWAY_POOL_IDLE_MS = parsePositiveInt(process.env.GATEWAY_POOL_IDLE_MS || "30000", 30_000);
+const GATEWAY_POOL_CLEANUP_INTERVAL_MS = parsePositiveInt(
+  process.env.GATEWAY_POOL_CLEANUP_INTERVAL_MS || "10000",
+  10_000
+);
+
+const gatewayPool = {
+  session: null,
+  connecting: null,
+  activeLeases: 0,
+  lastUsedAt: 0
+};
 
 function createToken() {
   const token = crypto.randomUUID();
-  SESSIONS.set(token, { createdAt: Date.now() });
+  const now = Date.now();
+  SESSIONS.set(token, {
+    createdAt: now,
+    lastActivityAt: now,
+    expiresAt: now + SESSION_TTL_MS
+  });
   return token;
 }
 
-function isValidToken(token) {
-  if (!token) return false;
-  return SESSIONS.has(token);
+function getSessionRecord(token) {
+  if (!token) return null;
+  const record = SESSIONS.get(token);
+  if (!record) return null;
+  if (!Number.isFinite(record.expiresAt) || record.expiresAt <= Date.now()) {
+    SESSIONS.delete(token);
+    return null;
+  }
+  return record;
+}
+
+function touchSessionRecord(token, record) {
+  if (!token || !record) return;
+  const now = Date.now();
+  record.lastActivityAt = now;
+  record.expiresAt = now + SESSION_TTL_MS;
+  SESSIONS.set(token, record);
+}
+
+function cleanupExpiredSessions() {
+  const now = Date.now();
+  for (const [token, record] of SESSIONS) {
+    if (!record || !Number.isFinite(record.expiresAt) || record.expiresAt <= now) {
+      SESSIONS.delete(token);
+    }
+  }
 }
 
 async function handleLogin(req, res) {
@@ -288,13 +336,72 @@ class GatewaySession {
   }
 }
 
+function isGatewaySessionAlive(session) {
+  return Boolean(
+    session &&
+      session.connected &&
+      session.ws &&
+      session.ws.readyState === WebSocket.OPEN &&
+      !session.closed
+  );
+}
+
+function closePooledGatewaySession() {
+  if (!gatewayPool.session) return;
+  const stale = gatewayPool.session;
+  gatewayPool.session = null;
+  try {
+    stale.close();
+  } catch {
+    // Ignore cleanup errors for stale pooled sessions.
+  }
+}
+
+async function getPooledGatewaySession() {
+  if (isGatewaySessionAlive(gatewayPool.session)) {
+    return gatewayPool.session;
+  }
+
+  closePooledGatewaySession();
+
+  if (!gatewayPool.connecting) {
+    gatewayPool.connecting = (async () => {
+      const session = new GatewaySession(gatewayConfig);
+      await session.connect();
+      gatewayPool.session = session;
+      gatewayPool.lastUsedAt = Date.now();
+      return session;
+    })().finally(() => {
+      gatewayPool.connecting = null;
+    });
+  }
+
+  return gatewayPool.connecting;
+}
+
+function cleanupIdleGatewaySession() {
+  if (!gatewayPool.session) return;
+  if (gatewayPool.activeLeases > 0) return;
+  const idleFor = Date.now() - gatewayPool.lastUsedAt;
+  if (idleFor >= GATEWAY_POOL_IDLE_MS) {
+    closePooledGatewaySession();
+  }
+}
+
 async function withGateway(fn) {
-  const session = new GatewaySession(gatewayConfig);
-  await session.connect();
+  const session = await getPooledGatewaySession();
+  gatewayPool.activeLeases += 1;
+  gatewayPool.lastUsedAt = Date.now();
   try {
     return await fn(session);
+  } catch (error) {
+    if (!isGatewaySessionAlive(session)) {
+      closePooledGatewaySession();
+    }
+    throw error;
   } finally {
-    session.close();
+    gatewayPool.activeLeases = Math.max(0, gatewayPool.activeLeases - 1);
+    gatewayPool.lastUsedAt = Date.now();
   }
 }
 
@@ -334,7 +441,10 @@ function sendFile(res, filePath) {
       ".png": "image/png",
       ".jpg": "image/jpeg",
       ".jpeg": "image/jpeg",
-      ".webp": "image/webp"
+      ".webp": "image/webp",
+      ".woff": "font/woff",
+      ".woff2": "font/woff2",
+      ".ttf": "font/ttf"
     };
 
     const content = fs.readFileSync(filePath);
@@ -559,13 +669,18 @@ const server = http.createServer(async (req, res) => {
     const authHeader = req.headers.authorization || '';
     const token = authHeader.replace(/^Bearer\s+/i, '');
     const hasConfiguredAuth = !!(gatewayConfig.password || gatewayConfig.token);
+    const requiresAuth = hasConfiguredAuth && pathname !== "/api/health";
     
-    if (hasConfiguredAuth && !isValidToken(token) && pathname !== "/api/health") {
-      res.writeHead(401, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: false, error: "Unauthorized" }));
-      return;
+    if (requiresAuth) {
+      const sessionRecord = getSessionRecord(token);
+      if (!sessionRecord) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: "Unauthorized" }));
+        return;
+      }
+      touchSessionRecord(token, sessionRecord);
     }
-    
+
     await handleApi(req, res, pathname, url.searchParams);
     return;
   }
@@ -586,6 +701,15 @@ const server = http.createServer(async (req, res) => {
 
   sendFile(res, path.join(publicDir, "index.html"));
 });
+
+cleanupExpiredSessions();
+cleanupIdleGatewaySession();
+
+const sessionCleanupTimer = setInterval(cleanupExpiredSessions, SESSION_CLEANUP_INTERVAL_MS);
+if (typeof sessionCleanupTimer.unref === "function") sessionCleanupTimer.unref();
+
+const gatewayCleanupTimer = setInterval(cleanupIdleGatewaySession, GATEWAY_POOL_CLEANUP_INTERVAL_MS);
+if (typeof gatewayCleanupTimer.unref === "function") gatewayCleanupTimer.unref();
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`OpenClaw MVP server running on http://127.0.0.1:${PORT}`);

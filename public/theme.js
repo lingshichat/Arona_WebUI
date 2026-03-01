@@ -8,7 +8,7 @@ const themes = {
     '--text-primary': '#ffffff',
     '--text-secondary': 'rgba(255, 255, 255, 0.7)',
     '--text-muted': 'rgba(255, 255, 255, 0.4)',
-    '--bg-image': "url('https://lingshichat.s3.bitiful.net/img/blog/bg.jpg')"
+    '--bg-image': "url('/assets/bg.jpg')"
   },
   light: {
     '--primary-color': '#00a3ff',
@@ -19,7 +19,7 @@ const themes = {
     '--text-primary': '#1a202c',
     '--text-secondary': '#4a5568',
     '--text-muted': '#a0aec0',
-    '--bg-image': "url('https://img.lingshichat.top/img/gallery/%E4%BA%8C%E6%AC%A1%E5%85%83/1772174165487_bocl57.jpg')"
+    '--bg-image': "url('/assets/blog-bg.jpg')"
   }
 };
 
@@ -30,6 +30,7 @@ function applyTheme(themeName) {
   for (const [key, value] of Object.entries(theme)) {
     document.documentElement.style.setProperty(key, value);
   }
+  document.documentElement.setAttribute('data-theme', themeName);
   
   // 更新背景伪元素颜色以匹配明暗
   if (themeName === 'light') {

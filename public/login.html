@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>身份验证 | 什亭之箱</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/assets/fontawesome/css/all.min.css">
   <style>
     :root {
       --primary-color: #3b70fc;
@@ -12,7 +12,7 @@
       --glass-border: rgba(255, 255, 255, 0.15);
       --text-primary: #ffffff;
       --text-muted: rgba(255, 255, 255, 0.6);
-      --bg-image: url('https://lingshichat.s3.bitiful.net/img/blog/bg.jpg');
+      --bg-image: url('/assets/bg.jpg');
     }
     * { box-sizing: border-box; }
     body {
@@ -126,7 +126,7 @@
 </head>
 <body>
   <div class="login-container">
-    <img src="https://img.lingshichat.top/img/gallery/二次元/1772174165487_bocl57.jpg" alt="Arona" class="avatar">
+    <img src="/assets/avatar.jpg" alt="Arona" class="avatar">
     <h2>什亭之箱</h2>
     <p>Sensei, 欢迎回来。请验证您的终端权限。</p>
     
@@ -146,7 +146,7 @@
       </div>
     </div>
 
-    <button id="login-btn" onclick="login()">
+    <button type="button" id="login-btn" onclick="login()">
       <span class="btn-text">授权访问</span>
       <div class="loading-spinner"></div>
     </button>
@@ -154,10 +154,10 @@
   </div>
 
   <script>
-    document.getElementById('password').addEventListener('keypress', function(e) {
+    document.getElementById('password').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') login();
     });
-    document.getElementById('username').addEventListener('keypress', function(e) {
+    document.getElementById('username').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') document.getElementById('password').focus();
     });
 

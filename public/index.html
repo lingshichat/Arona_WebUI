@@ -5,14 +5,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>灵诗控制台 | OpenClaw</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/assets/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="/styles.css" />
   <script src="/theme.js"></script>
 </head>
   <body>
     <div id="app" class="app-container">
       <!-- 移动端汉堡菜单 -->
-      <button class="mobile-menu-btn" id="mobile-toggle">
+      <button type="button" class="mobile-menu-btn" id="mobile-toggle">
         <i class="fa-solid fa-bars"></i>
       </button>
 
@@ -20,7 +20,7 @@
       <aside class="admin-sidebar" id="sidebar">
         <div class="user-profile">
           <div class="avatar-wrapper">
-            <img src="https://img.lingshichat.top/img/gallery/二次元/1772174165487_bocl57.jpg" class="user-avatar" alt="Arona">
+            <img src="/assets/avatar.jpg" class="user-avatar" alt="Arona">
             <i class="fa-solid fa-crown crown-icon"></i>
           </div>
           <div class="user-info">
@@ -61,6 +61,7 @@
             <div class="status-node" title="处理器负载">
               <div class="node-icon-wrap">
                 <svg class="node-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <title>处理器负载图标</title>
                   <path d="M12 2V4M12 20V22M4 12H2M22 12H20M18.36 5.64L16.95 7.05M7.05 16.95L5.64 18.36M18.36 18.36L16.95 16.95M7.05 7.05L5.64 5.64" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                   <circle cx="12" cy="12" r="3" fill="currentColor" fill-opacity="0.3" stroke="currentColor" stroke-width="2"/>
                 </svg>
@@ -74,6 +75,7 @@
             <div class="status-node" title="内存占用">
               <div class="node-icon-wrap">
                 <svg class="node-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <title>内存占用图标</title>
                   <path d="M4 14.8995C2.75438 13.5981 2 11.8864 2 10C2 6.13401 5.13401 3 9 3C11.6914 3 14.0455 4.51405 15.2312 6.74194C15.8043 6.2666 16.5332 6 17.3333 6C19.3584 6 21 7.567 21 9.5C21 10.145 20.819 10.7495 20.5 11.268" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                   <path d="M7 13L10 16L17 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
@@ -96,9 +98,12 @@
       <!-- 主内容区 -->
       <main class="admin-main">
         <section id="view-overview" class="view active">
-          <div style="margin-bottom: 25px; padding: 0 5px;">
-            <h2 style="margin: 0 0 5px; font-weight: 600; font-size: 1.5rem; letter-spacing: 1px;">仪表盘</h2>
-            <p style="margin: 0; color: var(--text-muted); font-size: 0.95rem;">欢迎回来，阿洛娜随时为您待命！</p>
+          <div style="margin-bottom: 25px; padding: 0 5px; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px;">
+            <div>
+              <h2 style="margin: 0 0 5px; font-weight: 600; font-size: 1.5rem; letter-spacing: 1px;">仪表盘</h2>
+              <p style="margin: 0; color: var(--text-muted); font-size: 0.95rem;">欢迎回来，阿洛娜随时为您待命！</p>
+            </div>
+            <button type="button" id="overview-refresh" class="panel-action-btn"><i class="fa-solid fa-rotate-right"></i> 立即刷新</button>
           </div>
           <div id="overview-content"></div>
         </section>
@@ -111,7 +116,7 @@
           <div class="glass-panel">
             <div class="panel-header">
               <span class="panel-title">快捷配置</span>
-              <button id="models-reload" class="panel-action-btn">重新加载</button>
+                  <button type="button" id="models-reload" class="panel-action-btn">重新加载</button>
             </div>
             <div class="config-form" style="padding: 20px;">
               <div class="config-row">
@@ -137,7 +142,7 @@
               </div>
 
               <div style="margin-top: 30px; display: flex; justify-content: flex-end;">
-                <button id="models-save" class="btn-primary"><i class="fa-solid fa-floppy-disk"></i> 保存并应用配置</button>
+                <button type="button" id="models-save" class="btn-primary"><i class="fa-solid fa-floppy-disk"></i> 保存并应用配置</button>
               </div>
               
             </div>
@@ -162,90 +167,90 @@
               <p style="margin: 0; color: var(--text-muted); font-size: 0.95rem;">配置周期性任务或单次提醒，全自动化流转。</p>
            </div>
            <div class="glass-panel" id="cron-list"></div>
-           <div id="cron-form-wrap" class="glass-panel" style="margin-top: 30px;">
-              <div class="panel-header" style="background: rgba(0,0,0,0.15);">
-                <div style="display: flex; gap: 15px;">
-                  <button class="tab-btn active" id="cron-tab-form">可视化表单</button>
-                  <button class="tab-btn" id="cron-tab-json">JSON 源码</button>
+           <div id="cron-form-wrap" class="glass-panel cron-form-wrap">
+              <div class="panel-header cron-panel-header">
+                <div class="cron-tabs">
+                  <button type="button" class="tab-btn active" id="cron-tab-form">可视化表单</button>
+                  <button type="button" class="tab-btn" id="cron-tab-json">JSON 源码</button>
                 </div>
               </div>
-              <div class="config-form" style="padding: 30px;">
+              <div class="config-form cron-config-form">
                  
                  <!-- 表单视图 -->
-                 <div id="cron-view-form">
-                    <div class="config-row" style="margin-bottom: 24px;">
-                      <label style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 500; margin-bottom: 8px; display: block;">任务名称</label>
-                      <input type="text" id="cron-form-name" placeholder="例如：每日早安问候" style="width: 100%; padding: 12px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; font-size: 0.95rem; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);" />
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
-                      <div class="config-row" style="margin-bottom: 0;">
-                        <label style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 500; margin-bottom: 8px; display: block;">计划类型</label>
-                        <select id="cron-form-kind" style="width: 100%; padding: 12px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; font-size: 0.95rem; appearance: none; cursor: pointer;">
-                          <option value="cron">周期循环 (Cron)</option>
-                          <option value="at">一次性 (At)</option>
-                          <option value="every">间隔触发 (Every)</option>
-                        </select>
-                      </div>
-                      <div class="config-row" id="cron-form-value-wrap" style="margin-bottom: 0; position: relative;">
-                        <label id="cron-form-value-label" style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 500; margin-bottom: 8px; display: block;">执行时间 (HH:mm)</label>
-                        
-                        <!-- 时间选择器 (用于 Cron 每天执行) -->
-                        <div id="cron-time-picker" style="display: flex; gap: 10px;">
-                          <input type="time" id="cron-form-time" value="08:00" style="width: 100%; padding: 11px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; font-size: 1rem; font-family: var(--font-mono); box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;" />
-                        </div>
-                        
-                        <!-- 文本输入框 (用于 At 或 Every) -->
-                        <input type="text" id="cron-form-value" placeholder="" style="display: none; width: 100%; padding: 12px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; font-size: 0.95rem; font-family: var(--font-mono); box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);" />
-                        
-                      </div>
-                    </div>
+                  <div id="cron-view-form">
+                     <div class="config-row">
+                       <label>任务名称</label>
+                       <input type="text" id="cron-form-name" placeholder="例如：每日早安问候" />
+                     </div>
+                     
+                     <div class="cron-schedule-grid">
+                       <div class="config-row cron-grid-item">
+                         <label>计划类型</label>
+                         <select id="cron-form-kind">
+                           <option value="cron">周期循环 (Cron)</option>
+                           <option value="at">一次性 (At)</option>
+                           <option value="every">间隔触发 (Every)</option>
+                         </select>
+                       </div>
+                       <div class="config-row cron-grid-item" id="cron-form-value-wrap">
+                         <label id="cron-form-value-label">执行时间 (HH:mm)</label>
+                         
+                         <!-- 时间选择器 (用于 Cron 每天执行) -->
+                         <div id="cron-time-picker">
+                           <input type="time" id="cron-form-time" value="08:00" />
+                         </div>
+                         
+                         <!-- 文本输入框 (用于 At 或 Every) -->
+                         <input type="text" id="cron-form-value" placeholder="" />
+                         
+                       </div>
+                     </div>
 
-                    <div class="config-row" style="margin-bottom: 24px;">
-                      <label style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 500; margin-bottom: 8px; display: block;">任务指令 (Prompt)</label>
-                      <textarea id="cron-form-message" rows="4" placeholder="例如：查询今天的天气并向老师汇报" style="width: 100%; padding: 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; font-size: 0.95rem; line-height: 1.5; resize: vertical; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);"></textarea>
-                    </div>
-                    
-                    <div style="display: flex; gap: 30px; align-items: center; margin-bottom: 30px; padding: 15px 20px; background: rgba(255,255,255,0.03); border-radius: 10px; border: 1px solid rgba(255,255,255,0.05);">
-                      <label style="margin:0; display:flex; align-items:center; gap:12px; cursor:pointer; color: var(--text-secondary); font-size: 0.9rem;">
-                        <div class="switch-toggle" style="position: relative; width: 36px; height: 20px;">
-                          <input type="checkbox" id="cron-form-isolated" checked style="opacity: 0; width: 0; height: 0; position: absolute;" />
-                          <span class="slider" style="position: absolute; inset: 0; background: var(--primary-color); border-radius: 20px; transition: 0.3s; border: 1px solid transparent;">
-                            <span class="knob" style="position: absolute; width: 14px; height: 14px; background: #fff; border-radius: 50%; top: 2px; left: 18px; transition: 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></span>
-                          </span>
-                        </div>
-                        隔离运行会话 (Isolated)
-                      </label>
-                      <label style="margin:0; display:flex; align-items:center; gap:12px; cursor:pointer; color: var(--text-secondary); font-size: 0.9rem;">
-                        <div class="switch-toggle" style="position: relative; width: 36px; height: 20px;">
-                          <input type="checkbox" id="cron-form-enabled" checked style="opacity: 0; width: 0; height: 0; position: absolute;" />
-                          <span class="slider" style="position: absolute; inset: 0; background: var(--primary-color); border-radius: 20px; transition: 0.3s; border: 1px solid transparent;">
-                            <span class="knob" style="position: absolute; width: 14px; height: 14px; background: #fff; border-radius: 50%; top: 2px; left: 18px; transition: 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></span>
-                          </span>
-                        </div>
-                        立即启用任务 (Enabled)
-                      </label>
-                    </div>
-                 </div>
+                     <div class="config-row">
+                       <label>任务指令 (Prompt)</label>
+                       <textarea id="cron-form-message" rows="4" placeholder="例如：查询今天的天气并向老师汇报"></textarea>
+                     </div>
+                     
+                     <div class="cron-flags-row">
+                       <label class="cron-flag-item">
+                         <div class="switch-toggle cron-flag-switch">
+                           <input type="checkbox" id="cron-form-isolated" checked />
+                           <span class="slider">
+                             <span class="knob"></span>
+                           </span>
+                         </div>
+                         隔离运行会话 (Isolated)
+                       </label>
+                       <label class="cron-flag-item">
+                         <div class="switch-toggle cron-flag-switch">
+                           <input type="checkbox" id="cron-form-enabled" checked />
+                           <span class="slider">
+                             <span class="knob"></span>
+                           </span>
+                         </div>
+                         立即启用任务 (Enabled)
+                       </label>
+                     </div>
+                  </div>
 
-                 <!-- JSON 视图 (隐藏) -->
-                 <div id="cron-view-json" style="display: none;">
-                   <div style="margin-bottom: 15px; color: var(--text-muted); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: flex-end;">
-                     <span>支持高级语法的完整 JSON 配置：</span>
-                     <button id="cron-template" class="panel-action-btn" style="background: rgba(59, 112, 252, 0.15); border-color: rgba(59, 112, 252, 0.3); color: #fff; padding: 6px 12px;"><i class="fa-solid fa-bolt"></i> 填入默认模板</button>
-                   </div>
-                   <div style="position: relative; border-radius: 12px; overflow: hidden; box-shadow: inset 0 2px 8px rgba(0,0,0,0.2);">
-                     <textarea id="cron-job-json" rows="12" style="margin-bottom: 0; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.4); font-family: var(--font-mono); font-size: 0.9rem; padding: 16px; color: #a3c2ff; line-height: 1.6;"></textarea>
-                   </div>
-                 </div>
+                  <!-- JSON 视图 (隐藏) -->
+                  <div id="cron-view-json" class="cron-view-json">
+                    <div class="cron-json-head">
+                      <span>支持高级语法的完整 JSON 配置：</span>
+                      <button type="button" id="cron-template" class="panel-action-btn cron-template-btn"><i class="fa-solid fa-bolt"></i> 填入默认模板</button>
+                    </div>
+                    <div class="cron-json-editor-wrap">
+                      <textarea id="cron-job-json" rows="12"></textarea>
+                    </div>
+                  </div>
 
-                 <div class="actions" style="margin-top: 15px; display: flex; justify-content: flex-end;">
-                    <button id="cron-add" class="btn-primary"><i class="fa-solid fa-paper-plane"></i> 下发创建任务</button>
-                 </div>
-                 <pre id="cron-result" class="result" style="display: none;"></pre>
-              </div>
-           </div>
-        </section>
+                  <div class="actions cron-actions">
+                     <button type="button" id="cron-add" class="btn-primary"><i class="fa-solid fa-paper-plane"></i> 下发创建任务</button>
+                  </div>
+                  <pre id="cron-result" class="result cron-result"></pre>
+               </div>
+            </div>
+         </section>
 
         <section id="view-nodes" class="view">
            <div style="margin-bottom: 25px; padding: 0 5px;">
@@ -255,9 +260,10 @@
            <div class="glass-panel" id="nodes-list"></div>
            <div class="glass-panel" style="margin-top: 20px; padding: 20px;">
               <div class="config-row"><label>Node ID</label><input id="node-id" type="text" /></div>
-              <div class="config-row"><label>Command</label><input id="node-command" type="text" /></div>
+              <div class="config-row"><label>Command</label><input id="node-command" type="text" list="node-command-options" /></div>
+              <datalist id="node-command-options"></datalist>
               <div class="config-row"><label>Params (JSON)</label><textarea id="node-params" rows="3">{}</textarea></div>
-              <div style="margin-top: 15px;"><button id="node-invoke" class="btn-primary">执行命令</button></div>
+              <div style="margin-top: 15px;"><button type="button" id="node-invoke" class="btn-primary">执行命令</button></div>
               <pre id="node-result" class="result" style="margin-top: 15px;"></pre>
            </div>
         </section>
@@ -270,8 +276,8 @@
            <div class="glass-panel" style="padding: 15px;">
               <div class="posts-toolbar" style="margin-bottom: 15px; display: flex; gap: 10px;">
                  <input id="logs-keyword" type="text" placeholder="搜索日志..." style="flex: 1;">
-                 <button id="logs-toggle" class="btn-primary">开始实时</button>
-                 <button id="logs-clear" class="panel-action-btn">清空</button>
+                 <button type="button" id="logs-toggle" class="btn-primary">开始实时</button>
+                 <button type="button" id="logs-clear" class="panel-action-btn">清空</button>
               </div>
               <pre id="logs-output" class="log-output"></pre>
            </div>
