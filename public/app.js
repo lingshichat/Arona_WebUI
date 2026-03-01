@@ -5,7 +5,10 @@ const state = {
   logsTimer: null,
   logsLive: false,
   systemTimer: null,
-  modelDefaultOptions: []
+  overviewTimer: null,
+  nodeCommandDefaults: [],
+  modelDefaultOptions: [],
+  cronJsonMode: false
 };
 
 const viewLoaders = {
@@ -23,13 +26,16 @@ function $(id) {
 
 async function api(path, options = {}) {
   const token = localStorage.getItem("openclaw_token");
+  const mergedHeaders = {
+    "Content-Type": "application/json",
+    ...(options.headers || {})
+  };
   if (token) {
-    options.headers = options.headers || {};
-    options.headers["Authorization"] = `Bearer ${token}`;
+    mergedHeaders["Authorization"] = `Bearer ${token}`;
   }
   const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options
+    ...options,
+    headers: mergedHeaders
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401) {
@@ -72,7 +78,7 @@ function showToast(message, type = 'info', duration = 3000) {
       </div>
       <div class="toast-content">
           <div class="toast-title">${title}</div>
-          <div class="toast-message">${message}</div>
+          <div class="toast-message">${escapeHtml(message)}</div>
       </div>
       <button class="toast-close"><i class="fa-solid fa-xmark"></i></button>
   `;
@@ -129,6 +135,110 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getLogLevel(line) {
+  const text = String(line || "");
+  if (/\b(error|failed|failure|exception|fatal|panic|denied)\b/i.test(text)) return "error";
+  if (/\b(warn|warning|deprecated|retry)\b/i.test(text)) return "warn";
+  if (/\b(info|connected|started|success|ready)\b/i.test(text)) return "info";
+  return "default";
+}
+
+function highlightLogKeyword(line, keyword) {
+  const source = String(line || "");
+  if (!keyword) return escapeHtml(source);
+  const pattern = new RegExp(escapeRegExp(keyword), "gi");
+  let result = "";
+  let cursor = 0;
+  let match = pattern.exec(source);
+  while (match !== null) {
+    result += escapeHtml(source.slice(cursor, match.index));
+    result += `<mark class="log-highlight">${escapeHtml(match[0])}</mark>`;
+    cursor = match.index + match[0].length;
+    if (match[0].length === 0) break;
+    match = pattern.exec(source);
+  }
+  result += escapeHtml(source.slice(cursor));
+  return result;
+}
+
+function renderLogLine(line, keyword) {
+  const level = getLogLevel(line);
+  return `<span class="log-line log-${level}">${highlightLogKeyword(line, keyword)}</span>`;
+}
+
+function appendLogLines(lines, keyword) {
+  const output = $("logs-output");
+  if (!output || lines.length === 0) return;
+  const html = lines.map((line) => renderLogLine(line, keyword)).join("\n");
+  if (output.innerHTML) output.insertAdjacentText("beforeend", "\n");
+  output.insertAdjacentHTML("beforeend", html);
+  output.scrollTop = output.scrollHeight;
+}
+
+// Safe arithmetic expression evaluator (numbers, + - * /, parentheses, whitespace only)
+function evaluateArithmetic(expr) {
+  const s = String(expr || '').replace(/\s/g, '');
+  if (!s) return 0;
+  if (!/^[0-9+\-*/().]+$/.test(s)) {
+    throw new Error('Invalid expression');
+  }
+  let pos = 0;
+  function parseExpression() {
+    let value = parseTerm();
+    while (pos < s.length) {
+      const char = s[pos];
+      if (char === '+') { pos++; value += parseTerm(); }
+      else if (char === '-') { pos++; value -= parseTerm(); }
+      else break;
+    }
+    return value;
+  }
+  function parseTerm() {
+    let value = parseFactor();
+    while (pos < s.length) {
+      const char = s[pos];
+      if (char === '*') { pos++; value *= parseFactor(); }
+      else if (char === '/') {
+        pos++;
+        const divisor = parseFactor();
+        if (divisor === 0) throw new Error('Division by zero');
+        value /= divisor;
+      } else break;
+    }
+    return value;
+  }
+  function parseFactor() {
+    if (pos >= s.length) throw new Error('Unexpected end');
+    const char = s[pos];
+    if (char === '(') {
+      pos++;
+      const value = parseExpression();
+      if (pos >= s.length || s[pos] !== ')') throw new Error('Missing closing parenthesis');
+      pos++;
+      return value;
+    }
+    const start = pos;
+    let hasDecimal = false;
+    while (pos < s.length) {
+      const c = s[pos];
+      if (c >= '0' && c <= '9') pos++;
+      else if (c === '.' && !hasDecimal) { hasDecimal = true; pos++; }
+      else break;
+    }
+    if (start === pos) throw new Error('Expected number');
+    const num = parseFloat(s.substring(start, pos));
+    if (isNaN(num)) throw new Error('Invalid number');
+    return num;
+  }
+  const result = parseExpression();
+  if (pos < s.length) throw new Error('Unexpected character');
+  return Math.round(result);
+}
+
 function setView(view) {
   state.currentView = view;
 
@@ -142,6 +252,13 @@ function setView(view) {
 
   const load = viewLoaders[view];
   if (load) load();
+
+  if (view === "overview") {
+    loadSystemLoad();
+    startOverviewTimers();
+  } else {
+    stopOverviewTimers();
+  }
 
   if (view === "logs") {
     startLogStream();
@@ -194,6 +311,30 @@ async function loadSystemLoad() {
     setPerfValue("cpu-value", 0);
     setPerfValue("mem-value", 0);
     console.error(err);
+  }
+}
+
+function startOverviewTimers() {
+  if (!state.systemTimer) {
+    state.systemTimer = setInterval(() => {
+      if (state.currentView === "overview") loadSystemLoad();
+    }, 5000);
+  }
+  if (!state.overviewTimer) {
+    state.overviewTimer = setInterval(() => {
+      if (state.currentView === "overview") loadOverview();
+    }, 30000);
+  }
+}
+
+function stopOverviewTimers() {
+  if (state.systemTimer) {
+    clearInterval(state.systemTimer);
+    state.systemTimer = null;
+  }
+  if (state.overviewTimer) {
+    clearInterval(state.overviewTimer);
+    state.overviewTimer = null;
   }
 }
 
@@ -301,7 +442,7 @@ async function loadOverview() {
 
       <div class="dashboard-grid" style="gap: 24px; margin-bottom: 35px;">${statsHtml}</div>
       
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
         <div class="glass-panel" style="margin-bottom: 0;">
 <div class="panel-header"><span class="panel-title"><i class="fa-solid fa-list-ul" style="color: var(--primary-color); margin-right: 8px;"></i>最近活跃会话</span></div>
           <div class="table-wrap">${sessionsTable}</div>
@@ -625,10 +766,10 @@ async function loadSkills() {
         {
           title: "启用状态",
           render: (r) => `
-            <label class="switch-toggle" style="display: inline-flex; align-items: center; cursor: pointer; position: relative;">
-              <input type="checkbox" data-skill-toggle="${escapeHtml(r.key)}" ${r.enabled ? "checked" : ""} style="opacity: 0; width: 0; height: 0; position: absolute;" />
-              <span class="slider" style="position: relative; width: 40px; height: 22px; background: ${r.enabled ? '#3b70fc' : 'rgba(255,255,255,0.15)'}; border-radius: 20px; transition: 0.3s; display: inline-block; border: 1px solid rgba(255,255,255,0.1);">
-                <span class="knob" style="position: absolute; width: 16px; height: 16px; background: #fff; border-radius: 50%; top: 2px; left: ${r.enabled ? '20px' : '2px'}; transition: 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></span>
+            <label class="switch-toggle">
+              <input type="checkbox" data-skill-toggle="${escapeHtml(r.key)}" ${r.enabled ? "checked" : ""} />
+              <span class="slider">
+                <span class="knob"></span>
               </span>
             </label>`
         },
@@ -643,9 +784,10 @@ async function loadSkills() {
     target.innerHTML = html;
 
     for (const toggle of target.querySelectorAll("[data-skill-toggle]")) {
-      toggle.addEventListener("change", async (event) => {
-        const skillKey = event.target.getAttribute("data-skill-toggle");
-        const enabled = event.target.checked;
+      toggle.addEventListener("change", async () => {
+        const skillKey = toggle.getAttribute("data-skill-toggle");
+        const enabled = toggle.checked;
+        if (!skillKey) return;
         try {
           await api("/api/skills/update", {
             method: "POST",
@@ -653,7 +795,7 @@ async function loadSkills() {
           });
         } catch (err) {
           alert(err.message);
-          event.target.checked = !enabled;
+          toggle.checked = !enabled;
         }
       });
     }
@@ -722,10 +864,10 @@ async function loadCron() {
         {
           title: "启用状态",
           render: (r) => `
-            <label class="switch-toggle" style="display: inline-flex; align-items: center; cursor: pointer; position: relative;">
-              <input type="checkbox" data-cron-enabled="${escapeHtml(r.id)}" ${r.enabled ? "checked" : ""} style="opacity: 0; width: 0; height: 0; position: absolute;" />
-              <span class="slider" style="position: relative; width: 40px; height: 22px; background: ${r.enabled ? 'var(--primary-color)' : 'rgba(255,255,255,0.15)'}; border-radius: 20px; transition: 0.3s; display: inline-block; border: 1px solid rgba(255,255,255,0.1);">
-                <span class="knob" style="position: absolute; width: 16px; height: 16px; background: #fff; border-radius: 50%; top: 2px; left: ${r.enabled ? '20px' : '2px'}; transition: 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></span>
+            <label class="switch-toggle">
+              <input type="checkbox" data-cron-enabled="${escapeHtml(r.id)}" ${r.enabled ? "checked" : ""} />
+              <span class="slider">
+                <span class="knob"></span>
               </span>
             </label>`
         },
@@ -783,9 +925,10 @@ async function loadCron() {
     target.innerHTML = html;
 
     for (const checkbox of target.querySelectorAll("[data-cron-enabled]")) {
-      checkbox.addEventListener("change", async (event) => {
-        const jobId = event.target.getAttribute("data-cron-enabled");
-        const enabled = event.target.checked;
+      checkbox.addEventListener("change", async () => {
+        const jobId = checkbox.getAttribute("data-cron-enabled");
+        const enabled = checkbox.checked;
+        if (!jobId) return;
         try {
           await api("/api/cron/update", {
             method: "POST",
@@ -793,14 +936,15 @@ async function loadCron() {
           });
         } catch (err) {
           alert(err.message);
-          event.target.checked = !enabled;
+          checkbox.checked = !enabled;
         }
       });
     }
 
     for (const btn of target.querySelectorAll("[data-cron-run]")) {
-      btn.addEventListener("click", async (event) => {
-        const jobId = event.target.getAttribute("data-cron-run");
+      btn.addEventListener("click", async () => {
+        const jobId = btn.getAttribute("data-cron-run");
+        if (!jobId) return;
         try {
           await api("/api/cron/run", { method: "POST", body: JSON.stringify({ jobId }) });
           await loadCron();
@@ -811,8 +955,9 @@ async function loadCron() {
     }
 
     for (const btn of target.querySelectorAll("[data-cron-runs]")) {
-      btn.addEventListener("click", async (event) => {
-        const jobId = event.target.getAttribute("data-cron-runs");
+      btn.addEventListener("click", async () => {
+        const jobId = btn.getAttribute("data-cron-runs");
+        if (!jobId) return;
         try {
           const runs = await api(`/api/cron/runs?jobId=${encodeURIComponent(jobId)}`);
           $("cron-result").textContent = JSON.stringify(runs, null, 2);
@@ -823,8 +968,9 @@ async function loadCron() {
     }
 
     for (const btn of target.querySelectorAll("[data-cron-remove]")) {
-      btn.addEventListener("click", async (event) => {
-        const jobId = event.target.getAttribute("data-cron-remove");
+      btn.addEventListener("click", async () => {
+        const jobId = btn.getAttribute("data-cron-remove");
+        if (!jobId) return;
         if (!confirm(`Remove job ${jobId}?`)) return;
         try {
           await api("/api/cron/remove", { method: "POST", body: JSON.stringify({ jobId }) });
@@ -843,7 +989,7 @@ async function addCronJob() {
   try {
     let job;
     
-    if (typeof isCronJsonMode !== 'undefined' && isCronJsonMode) {
+    if (state.cronJsonMode) {
       const rawVal = $("cron-job-json").value.trim();
       if (!rawVal) {
         showToast("任务配置内容不能为空！", "error");
@@ -893,11 +1039,15 @@ async function addCronJob() {
         // Evaluate user input safely (e.g. they might type "30 * 60000" or just "1800000")
         let parsedMs = 0;
         try {
-          parsedMs = eval(value.replace(/[^0-9\*\+\-\.\/\(\)]/g, ''));
-        } catch(e) {
+          parsedMs = evaluateArithmetic(value);
+        } catch (e) {
           parsedMs = parseInt(value, 10);
         }
-        schedule.everyMs = parsedMs;
+        if (!Number.isFinite(parsedMs) || parsedMs <= 0) {
+          showToast("间隔时间格式无效，请输入大于 0 的毫秒值或算式。", "error");
+          return;
+        }
+        schedule.everyMs = Math.round(parsedMs);
       }
       
       job = {
@@ -941,38 +1091,52 @@ async function addCronJob() {
   }
 }
 
+function updateNodeCommandOptions(commands) {
+  const normalized = Array.from(new Set((commands || []).map((item) => String(item).trim()).filter(Boolean)));
+  state.nodeCommandDefaults = normalized;
+  const list = $("node-command-options");
+  if (list) {
+    list.innerHTML = normalized.map((cmd) => `<option value="${escapeHtml(cmd)}"></option>`).join("");
+  }
+  const commandInput = $("node-command");
+  if (commandInput && normalized.length > 0) {
+    const current = commandInput.value.trim();
+    if (!current || !normalized.includes(current)) {
+      commandInput.value = normalized[0];
+    }
+  }
+}
+
+function selectNode(nodeId, commands) {
+  const id = String(nodeId || "").trim();
+  if (!id) return;
+  const nodeInput = $("node-id");
+  if (nodeInput) nodeInput.value = id;
+  updateNodeCommandOptions(commands);
+  for (const row of document.querySelectorAll("#nodes-list tbody tr")) {
+    row.classList.toggle("node-row-selected", row.getAttribute("data-node-id") === id);
+  }
+}
+
 async function loadNodes() {
   const target = $("nodes-list");
-  const formWrap = $("nodes-form-wrap");
-  
-  if (formWrap) {
-    formWrap.style.display = 'none';
-    formWrap.style.opacity = '0';
-    formWrap.style.transform = 'translateY(15px)';
-  }
   
   target.innerHTML = renderSkeleton(3);
   try {
     const data = await api("/api/nodes");
-    
-    if (formWrap) {
-      formWrap.style.display = 'block';
-      setTimeout(() => {
-        formWrap.style.transition = 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
-        formWrap.style.opacity = '1';
-        formWrap.style.transform = 'translateY(0)';
-      }, 50);
-    }
     const nodes = data.nodes || [];
     if (nodes.length === 0) {
       target.innerHTML = renderEmpty("fa-solid fa-network-wired", "未发现节点", "当前的什亭之箱还没有连接任何外部节点～");
+      updateNodeCommandOptions([]);
       return;
     }
     const rows = nodes.map((node) => ({
       ...node,
+      commandList: Array.isArray(node.commands) ? node.commands : [],
       caps: (node.caps || []).join(", "),
       commands: (node.commands || []).join(", ")
     }));
+    const commandMap = new Map(rows.map((row) => [String(row.nodeId || ""), row.commandList]));
 
     const html = renderTable(
       [
@@ -989,7 +1153,7 @@ async function loadNodes() {
         { title: "能力(Caps)", key: "caps" },
         {
           title: "操作",
-          render: (r) => `<button data-node-describe="${escapeHtml(r.nodeId)}">Describe</button>`
+          render: (r) => `<button type="button" class="action-btn log-btn" data-node-describe="${escapeHtml(r.nodeId)}" title="Describe"><i class="fa-solid fa-circle-info"></i></button>`
         }
       ],
       rows
@@ -997,10 +1161,24 @@ async function loadNodes() {
 
     target.innerHTML = html;
 
+    const tableRows = Array.from(target.querySelectorAll("tbody tr"));
+    for (const [index, row] of tableRows.entries()) {
+      const rowData = rows[index];
+      const rowNodeId = String(rowData?.nodeId || "").trim();
+      if (!rowNodeId) continue;
+      row.setAttribute("data-node-id", rowNodeId);
+      row.classList.add("node-row");
+      row.addEventListener("click", (event) => {
+        if (event.target.closest("[data-node-describe]")) return;
+        selectNode(rowNodeId, commandMap.get(rowNodeId) || []);
+      });
+    }
+
     for (const btn of target.querySelectorAll("[data-node-describe]")) {
-      btn.addEventListener("click", async (event) => {
-        const nodeId = event.target.getAttribute("data-node-describe");
-        $("node-id").value = nodeId;
+      btn.addEventListener("click", async () => {
+        const nodeId = btn.getAttribute("data-node-describe");
+        if (!nodeId) return;
+        selectNode(nodeId, commandMap.get(nodeId) || []);
         try {
           const result = await api(`/api/nodes/describe?nodeId=${encodeURIComponent(nodeId)}`);
           $("node-result").textContent = JSON.stringify(result, null, 2);
@@ -1058,17 +1236,15 @@ async function pullLogs() {
     const data = await api(`/api/logs?${params.toString()}`);
 
     state.logsCursor = data.cursor;
-    const keyword = $("logs-keyword").value.trim().toLowerCase();
+    const keywordRaw = $("logs-keyword").value.trim();
+    const keyword = keywordRaw.toLowerCase();
     const lines = (data.lines || []).map(normalizeLogLine).filter(Boolean);
     const filtered = keyword ? lines.filter((line) => line.toLowerCase().includes(keyword)) : lines;
 
-    const output = $("logs-output");
-    if (filtered.length > 0) {
-      output.textContent += `${filtered.join("\n")}\n`;
-      output.scrollTop = output.scrollHeight;
-    }
+    appendLogLines(filtered, keywordRaw);
   } catch (err) {
-    $("logs-output").textContent += `\n[error] ${err.message}\n`;
+    const keywordRaw = $("logs-keyword")?.value.trim() || "";
+    appendLogLines([`[error] ${err.message}`], keywordRaw);
   }
 }
 
@@ -1099,20 +1275,20 @@ function initLogsView() {
 
     $("logs-clear").addEventListener("click", () => {
       state.logsCursor = null;
-      $("logs-output").textContent = "";
+      $("logs-output").innerHTML = "";
     });
 
-    $("logs-keyword").addEventListener("change", () => {
-      $("logs-output").textContent = "";
+    $("logs-keyword").addEventListener("input", () => {
+      $("logs-output").innerHTML = "";
       state.logsCursor = null;
-      if (state.logsLive) pullLogs();
+      pullLogs();
     });
   }
 }
 
 function logoutBasicAuth() {
-  // BasicAuth is managed by nginx; this endpoint forces a fresh auth challenge.
-  window.location.href = `/logout?ts=${Date.now()}`;
+  localStorage.removeItem("openclaw_token");
+  window.location.href = "/login.html";
 }
 
 function bindEvents() {
@@ -1132,6 +1308,22 @@ function bindEvents() {
     event.preventDefault();
     logoutBasicAuth();
   });
+
+  const overviewRefreshBtn = $("overview-refresh");
+  if (overviewRefreshBtn) {
+    overviewRefreshBtn.addEventListener("click", async () => {
+      if (overviewRefreshBtn.disabled) return;
+      const label = overviewRefreshBtn.innerHTML;
+      overviewRefreshBtn.disabled = true;
+      overviewRefreshBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 刷新中';
+      try {
+        await Promise.all([loadOverview(), loadSystemLoad()]);
+      } finally {
+        overviewRefreshBtn.disabled = false;
+        overviewRefreshBtn.innerHTML = label;
+      }
+    });
+  }
 
   $("models-save")?.addEventListener("click", saveModels);
   $("models-reload")?.addEventListener("click", loadModels);
@@ -1155,7 +1347,7 @@ function bindEvents() {
   const tabJson = $("cron-tab-json");
   const viewForm = $("cron-view-form");
   const viewJson = $("cron-view-json");
-  let isCronJsonMode = false;
+  state.cronJsonMode = false;
 
   if (tabForm && tabJson) {
     tabForm.addEventListener("click", () => {
@@ -1163,14 +1355,14 @@ function bindEvents() {
       tabJson.classList.remove("active");
       viewForm.style.display = "block";
       viewJson.style.display = "none";
-      isCronJsonMode = false;
+      state.cronJsonMode = false;
     });
     tabJson.addEventListener("click", () => {
       tabJson.classList.add("active");
       tabForm.classList.remove("active");
       viewJson.style.display = "block";
       viewForm.style.display = "none";
-      isCronJsonMode = true;
+      state.cronJsonMode = true;
     });
   }
 
@@ -1220,11 +1412,6 @@ async function bootstrap() {
   bindEvents();
   initLogsView();
   await loadHealth();
-  await loadSystemLoad();
-
-  if (state.systemTimer) clearInterval(state.systemTimer);
-  state.systemTimer = setInterval(loadSystemLoad, 5000);
-
   setView("overview");
 }
 
