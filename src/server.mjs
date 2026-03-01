@@ -84,9 +84,9 @@ async function handleLogin(req, res) {
     const username = body.username;
     const password = body.password;
     
-    // Read credentials from env/config instead of hardcoding secrets in source.
-    const validUsername = process.env.GATEWAY_USERNAME || "admin";
-    const validPassword = gatewayConfig.password || gatewayConfig.token || "";
+    // WebUI login creds are independent from gateway auth creds.
+    const validUsername = process.env.WEBUI_USERNAME || process.env.GATEWAY_USERNAME || "admin";
+    const validPassword = process.env.WEBUI_PASSWORD || gatewayConfig.password || gatewayConfig.token || "";
     
     if (username === validUsername && (validPassword ? password === validPassword : true)) {
       const token = createToken();
