@@ -4,12 +4,32 @@ import path from "node:path";
 import crypto from "node:crypto";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
+
+// Load .env.local if it exists (local dev config, not committed to git)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+(function loadEnvLocal() {
+  const envPath = path.join(__dirname, "..", ".env.local");
+  try {
+    const content = fs.readFileSync(envPath, "utf8");
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIndex = trimmed.indexOf("=");
+      if (eqIndex < 1) continue;
+      const key = trimmed.slice(0, eqIndex).trim();
+      const val = trimmed.slice(eqIndex + 1).trim().replace(/^["']|["']$/g, "");
+      if (!(key in process.env)) process.env[key] = val;
+    }
+  } catch {
+    // .env.local not found — use environment variables or defaults
+  }
+})();
+
 import cronstruePlugin from "cronstrue/i18n.js";
 const cronstrue = cronstruePlugin.default || cronstruePlugin;
 import { WebSocket } from "ws";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const SESSIONS = new Map();
 

@@ -1,13 +1,8 @@
 const state = {
   currentView: "overview",
   modelsHash: "",
-  modelProvidersDraft: {},
+  modelProviderSnapshots: {},
   providerModalOpen: false,
-  providerEditor: {
-    mode: "create",
-    originalKey: "",
-    dirty: false
-  },
   logsCursor: null,
   logsTimer: null,
   logsLive: false,
@@ -18,57 +13,23 @@ const state = {
   cronJsonMode: false
 };
 
-const REDACTED_API_KEY_TOKEN = "__OPENCLAW_REDACTED__";
-
 // =========================================
 // Spotlight 交互与全局光照
 // =========================================
-const spotlightPointer = {
-  active: false,
-  x: 0,
-  y: 0
-};
-
-let spotlightRefreshPending = false;
-
-function updateSpotlights(pointerX, pointerY) {
+document.addEventListener("mousemove", (e) => {
   const spotlights = document.querySelectorAll("[data-spotlight]");
   for (const el of spotlights) {
     const rect = el.getBoundingClientRect();
-    const x = pointerX - rect.left;
-    const y = pointerY - rect.top;
-
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
     let lens = el.querySelector(".spotlight-lens");
     if (!lens) {
       lens = document.createElement("div");
       lens.className = "spotlight-lens";
       el.appendChild(lens);
     }
-    lens.style.background = `radial-gradient(220px circle at ${x}px ${y}px, rgba(255, 255, 255, 0.075) 0%, rgba(255, 255, 255, 0.03) 40%, transparent 78%)`;
+    lens.style.background = `radial-gradient(circle at ${x}px ${y}px, rgba(255, 255, 255, 0.08) 0%, transparent 60%)`;
   }
-}
-
-function refreshSpotlightsAfterLayout() {
-  if (!spotlightPointer.active || spotlightRefreshPending) return;
-  spotlightRefreshPending = true;
-  requestAnimationFrame(() => {
-    spotlightRefreshPending = false;
-    updateSpotlights(spotlightPointer.x, spotlightPointer.y);
-  });
-}
-
-document.addEventListener("mousemove", (e) => {
-  spotlightPointer.active = true;
-  spotlightPointer.x = e.clientX;
-  spotlightPointer.y = e.clientY;
-  updateSpotlights(spotlightPointer.x, spotlightPointer.y);
-}, { passive: true });
-
-window.addEventListener("scroll", refreshSpotlightsAfterLayout, { passive: true, capture: true });
-document.addEventListener("wheel", refreshSpotlightsAfterLayout, { passive: true });
-
-document.addEventListener("mouseleave", () => {
-  spotlightPointer.active = false;
 });
 
 const viewLoaders = {
@@ -703,19 +664,17 @@ function providerModelRowTemplate(rowData = {}) {
     extras: rowData.extras && typeof rowData.extras === "object" && !Array.isArray(rowData.extras) ? rowData.extras : {}
   };
 
-  const uniqueId = "reasoning-" + Math.random().toString(36).substring(2, 9);
-
   return `
     <div class="provider-model-row" data-provider-model-row>
       <input type="text" class="provider-model-id" placeholder="模型 ID（如 gpt-4o-mini）" value="${escapeHtml(row.id)}" />
       <input type="number" min="1" step="1" class="provider-model-context" placeholder="上下文窗口" value="${escapeHtml(row.contextWindow)}" />
-      <label class="provider-model-reasoning" for="${uniqueId}">
-        <input type="checkbox" id="${uniqueId}" class="provider-model-reasoning-toggle" ${row.reasoning ? "checked" : ""} />
-        <span class="provider-model-reasoning-label">推理模式</span>
+      <label class="provider-model-reasoning">
+        <input type="checkbox" class="provider-model-reasoning-toggle" ${row.reasoning ? "checked" : ""} />
+        推理
       </label>
       <input type="text" class="provider-model-input" placeholder="输入类型（逗号分隔，可留空）" value="${escapeHtml(row.input)}" />
       <input type="hidden" class="provider-model-extras" value="${escapeHtml(JSON.stringify(row.extras))}" />
-      <button type="button" class="provider-model-remove danger-action-btn" data-provider-model-remove title="移除模型" aria-label="移除模型">
+      <button type="button" class="provider-model-remove" data-provider-model-remove title="移除模型" aria-label="移除模型">
         <i class="fa-solid fa-minus"></i>
       </button>
     </div>
@@ -733,11 +692,17 @@ function providerCardTemplate(providerKey = "", provider = {}, originalKey = "")
     .join("");
   const modelRowsHtml = info.modelRows.map((row) => providerModelRowTemplate(row)).join("");
 
-  const providerFullConfig = cloneProviderConfig(provider);
-  const initialJsonStr = Object.keys(providerFullConfig).length > 0
-    ? JSON.stringify(providerFullConfig, null, 2)
-    : JSON.stringify({ baseUrl: "", apiKey: "", apiType: info.apiType || "openai", models: [] }, null, 2);
-  const isRedactedApiKey = info.apiKey === REDACTED_API_KEY_TOKEN;
+  // 提取提供商级别的额外 JSON 配置（如 temperature, 等等）
+  const providerExtraInfo = cloneProviderConfig(provider);
+  delete providerExtraInfo.baseUrl;
+  delete providerExtraInfo.baseURL;
+  delete providerExtraInfo.url;
+  delete providerExtraInfo.apiKey;
+  delete providerExtraInfo.apiType;
+  delete providerExtraInfo.type;
+  delete providerExtraInfo.models;
+
+  const initialJsonStr = Object.keys(providerExtraInfo).length > 0 ? JSON.stringify(providerExtraInfo, null, 2) : "";
 
   const brand = getProviderBrand(providerKey, info.apiType);
   const iconHTML = brand.isSvg ? brand.icon : `<i class="${brand.icon}"></i>`;
@@ -745,7 +710,10 @@ function providerCardTemplate(providerKey = "", provider = {}, originalKey = "")
   return `
     <article class="provider-edit-card" data-provider-card data-original-key="${escapeHtml(originalKey)}">
       <div class="provider-card-head" style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
-        <div class="provider-card-title"><span style="display:inline-flex; width:22px; height:22px; justify-content:center; align-items:center; margin-right:8px; color:var(--accent);">${iconHTML}</span><span style="font-weight:600;">当前 Provider 配置</span></div>
+        <div class="provider-card-title"><span style="display:inline-flex; width:22px; height:22px; justify-content:center; align-items:center; margin-right:8px; color:var(--accent);">${iconHTML}</span><span style="font-weight:600;">Provider 配置块</span></div>
+        <button type="button" class="provider-card-remove panel-action-btn" data-provider-remove title="删除 Provider" aria-label="删除 Provider" style="border-color: rgba(239, 68, 68, 0.3); color: #ef4444;">
+          <i class="fa-regular fa-trash-can"></i> 删除
+        </button>
       </div>
       <div class="provider-card-grid skeuo-input-group" style="gap:16px;">
         <div class="config-row" style="margin:0;">
@@ -761,12 +729,11 @@ function providerCardTemplate(providerKey = "", provider = {}, originalKey = "")
         <div class="config-row" style="margin:0;">
           <label>API Key</label>
           <div class="provider-secret-wrap" style="position:relative; width: 100%;">
-            <input type="password" class="provider-api-key skeuo-input" placeholder="${isRedactedApiKey ? "检测到脱敏密钥（不修改可保持原样）" : "sk-..."}" autocomplete="off" value="${escapeHtml(info.apiKey)}" style="padding-right: 40px;" />
+            <input type="password" class="provider-api-key skeuo-input" placeholder="sk-..." autocomplete="off" value="${escapeHtml(info.apiKey)}" style="padding-right: 40px;" />
             <button type="button" class="provider-secret-toggle" data-secret-toggle aria-label="显示 API Key" title="显示 API Key" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;">
               <i class="fa-regular fa-eye"></i>
             </button>
           </div>
-          ${isRedactedApiKey ? '<small class="form-hint" style="margin-top:6px;">当前显示的是脱敏占位符。保持不变会沿用旧密钥，输入新值可覆盖。</small>' : ""}
         </div>
 
         <div class="config-row" style="margin:0;">
@@ -783,17 +750,12 @@ function providerCardTemplate(providerKey = "", provider = {}, originalKey = "")
         </div>
 
         <div class="config-row provider-json-row" style="margin: 12px 0 0 0;">
-          <label style="display:flex; justify-content:space-between; gap: 10px; align-items: center;">
-            <span>当前 Provider 完整配置 (JSON)</span>
-            <span style="display:inline-flex; align-items:center; gap:8px;">
-              <button type="button" class="panel-action-btn provider-json-apply" data-provider-json-apply style="padding: 4px 10px; height: 28px; font-size: 0.78rem;">
-                <i class="fa-solid fa-wand-magic-sparkles"></i> 回填表单
-              </button>
-              <span class="provider-json-error json-error-text" style="display:none;"><i class="fa-solid fa-triangle-exclamation"></i> 格式异常</span>
-            </span>
+          <label style="display:flex; justify-content:space-between;">
+            <span>提供商级高级覆盖 (JSON)</span>
+            <span class="provider-json-error json-error-text" style="display:none;"><i class="fa-solid fa-triangle-exclamation"></i> 格式异常</span>
           </label>
-          <textarea class="provider-json-config skeuo-textarea" placeholder="{\n  &quot;baseUrl&quot;: &quot;https://example.com/v1&quot;,\n  &quot;apiKey&quot;: &quot;sk-...&quot;,\n  &quot;apiType&quot;: &quot;openai&quot;,\n  &quot;models&quot;: []\n}">${escapeHtml(initialJsonStr)}</textarea>
-          <small class="form-hint" style="margin-top:6px;">上方表单会自动同步到此 JSON；你也可以直接修改后点击“回填表单”。</small>
+          <textarea class="provider-json-config skeuo-textarea" placeholder="{\n  &quot;temperature&quot;: 0.7,\n  &quot;top_p&quot;: 1\n}">${escapeHtml(initialJsonStr)}</textarea>
+          <small class="form-hint" style="margin-top:6px;">将应用于此 Provider 下属所有模型的覆盖参数，必须为合法的 JSON 对象。</small>
         </div>
       </div>
     </article>
@@ -805,16 +767,64 @@ function appendProviderModelRow(targetList, rowData = {}) {
   targetList.insertAdjacentHTML("beforeend", providerModelRowTemplate(rowData));
 }
 
-function renderProviderEditor(providerKey = "", provider = {}, originalKey = "") {
+function providerCardHasContent(card) {
+  if (!card) return false;
+  const key = card.querySelector(".provider-key")?.value.trim() || "";
+  const baseUrl = card.querySelector(".provider-base-url")?.value.trim() || "";
+  const apiKey = card.querySelector(".provider-api-key")?.value.trim() || "";
+  if (key || baseUrl || apiKey) return true;
+
+  const rows = Array.from(card.querySelectorAll("[data-provider-model-row]"));
+  return rows.some((row) => {
+    const modelId = row.querySelector(".provider-model-id")?.value.trim() || "";
+    const contextWindow = row.querySelector(".provider-model-context")?.value.trim() || "";
+    const reasoning = row.querySelector(".provider-model-reasoning-toggle")?.checked === true;
+    const input = row.querySelector(".provider-model-input")?.value.trim() || "";
+    return Boolean(modelId || contextWindow || reasoning || input);
+  });
+}
+
+function appendProviderEditorCard() {
   const container = $("models-providers-editor");
   if (!container) return;
 
-  container.innerHTML = providerCardTemplate(providerKey, provider, originalKey);
+  const cards = Array.from(container.querySelectorAll("[data-provider-card]"));
+  if (cards.length === 1 && !providerCardHasContent(cards[0])) {
+    cards[0].querySelector(".provider-key")?.focus();
+    return;
+  }
+
+  container.insertAdjacentHTML("beforeend", providerCardTemplate("", {}, ""));
+  const input = container.querySelector(".provider-edit-card:last-child .provider-key");
+  input?.focus();
+}
+
+function renderProviderEditors(providers) {
+  const container = $("models-providers-editor");
+  if (!container) return;
+
+  const entries = Object.entries(providers || {});
+  if (entries.length === 0) {
+    container.innerHTML = providerCardTemplate("", {}, "");
+    return;
+  }
+
+  container.innerHTML = entries
+    .map(([key, provider]) => providerCardTemplate(key, provider, key))
+    .join("");
 }
 
 function getProviderModelRows(provider) {
   const rows = normalizeProviderModels(provider?.models, false);
   return rows.filter((row) => row.id);
+}
+
+function getContextTier(contextWindow) {
+  const size = Number(contextWindow) || 0;
+  if (size >= 128000) return { tone: "xl", label: "Ultra" };
+  if (size >= 64000) return { tone: "lg", label: "Long" };
+  if (size >= 32000) return { tone: "md", label: "Wide" };
+  return { tone: "sm", label: "Fast" };
 }
 
 function renderProviderMatrix(providers) {
@@ -827,10 +837,7 @@ function renderProviderMatrix(providers) {
       <div class="empty-placeholder" style="grid-column: 1 / -1; padding: 40px;">
         <i class="fa-solid fa-plug-circle-xmark empty-icon"></i>
         <h3 style="color:var(--text-primary); font-size:1.1rem;">还没有接入任何算力核心</h3>
-        <p>先添加一个 Provider，模型管理功能才会生效。</p>
-        <button type="button" class="panel-action-btn" data-provider-matrix-add style="margin-top: 10px;">
-          <i class="fa-solid fa-plus"></i> 接入第一个 Provider
-        </button>
+        <p>点击上方按钮接入第一个大模型提供商</p>
       </div>
     `;
     return;
@@ -859,7 +866,7 @@ function renderProviderMatrix(providers) {
       const iconHTML = brand.isSvg ? brand.icon : `<i class="${brand.icon}"></i>`;
 
       return `
-        <article class="provider-card" data-provider-key="${escapeHtml(key)}" data-spotlight>
+        <article class="provider-card" data-provider-key="${escapeHtml(key)}">
           <div class="provider-header">
             <div class="provider-brand">
               <div class="provider-logo-btn" data-provider-card-manage data-provider-key="${escapeHtml(key)}" title="修改 ${escapeHtml(key)} 设置">
@@ -899,366 +906,161 @@ function setProviderModalOpen(open) {
   document.body.classList.toggle("provider-modal-open", open);
 }
 
-function setProviderEditorDirty(dirty) {
-  state.providerEditor.dirty = dirty === true;
-}
-
-function setProviderModalMeta() {
-  const title = $("provider-modal-title");
-  const subtitle = $("provider-modal-subtitle");
-  const deleteBtn = $("models-provider-delete-current");
-  const saveCurrentBtn = $("models-provider-save-current");
-  const isEdit = state.providerEditor.mode === "edit";
-  const targetKey = state.providerEditor.originalKey || "";
-
-  if (title) {
-    title.textContent = isEdit ? `编辑 Provider：${targetKey}` : "接入新 Provider";
-  }
-  if (subtitle) {
-    subtitle.textContent = isEdit
-      ? "你正在修改当前供应商。点击“保存当前供应商”仅更新此配置。"
-      : "仅创建当前供应商，不会影响其他 Provider。";
-  }
-  if (deleteBtn) {
-    deleteBtn.style.display = isEdit ? "inline-flex" : "none";
-  }
-  if (saveCurrentBtn) {
-    saveCurrentBtn.innerHTML = '<i class="fa-solid fa-check"></i> 保存当前供应商';
-  }
-}
-
-function openProviderModal({ mode = "create", providerKey = "" } = {}) {
-  const isEdit = mode === "edit";
-  if (isEdit) {
-    if (!providerKey) {
-      showToast("缺少 Provider Key，无法进入编辑模式", "error");
-      return;
-    }
-    const targetProvider = state.modelProvidersDraft[providerKey];
-    if (!targetProvider) {
-      showToast(`未找到 Provider：${providerKey}`, "error");
-      return;
-    }
-    state.providerEditor.mode = "edit";
-    state.providerEditor.originalKey = providerKey;
-    setProviderEditorDirty(false);
-    renderProviderEditor(providerKey, targetProvider, providerKey);
-  } else {
-    state.providerEditor.mode = "create";
-    state.providerEditor.originalKey = "";
-    setProviderEditorDirty(false);
-    renderProviderEditor("", {}, "");
-  }
-
-  const currentCard = document.querySelector("#models-providers-editor [data-provider-card]");
-  if (currentCard) syncProviderJsonFromForm(currentCard);
-
-  setProviderModalMeta();
-  setProviderModalOpen(true);
-  requestAnimationFrame(() => {
-    const container = $("models-providers-editor");
-    container?.querySelector(".provider-key")?.focus();
+function focusProviderEditorByKey(providerKey) {
+  if (!providerKey) return;
+  const cards = Array.from(document.querySelectorAll("#models-providers-editor [data-provider-card]"));
+  const target = cards.find((card) => {
+    const originalKey = card.getAttribute("data-original-key") || "";
+    const currentKey = card.querySelector(".provider-key")?.value.trim() || "";
+    return originalKey === providerKey || currentKey === providerKey;
   });
+  if (!target) return;
+
+  target.classList.add("focus-ring");
+  setTimeout(() => target.classList.remove("focus-ring"), 900);
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  target.querySelector(".provider-key")?.focus();
 }
 
-function closeProviderModal({ force = false } = {}) {
-  if (!force && state.providerEditor.dirty) {
-    const shouldDiscard = window.confirm("当前供应商尚未保存，确定放弃本次修改吗？");
-    if (!shouldDiscard) return false;
+function openProviderModal({ appendNew = false, focusKey = "" } = {}) {
+  setProviderModalOpen(true);
+  if (appendNew) appendProviderEditorCard();
+  if (focusKey) {
+    requestAnimationFrame(() => focusProviderEditorByKey(focusKey));
   }
+}
 
+function closeProviderModal() {
   setProviderModalOpen(false);
-  state.providerEditor.mode = "create";
-  state.providerEditor.originalKey = "";
-  setProviderEditorDirty(false);
-  return true;
 }
 
-const PROVIDER_MANAGED_KEYS = new Set(["baseUrl", "baseURL", "url", "apiKey", "apiType", "type", "models"]);
+function collectProviders() {
+  const container = $("models-providers-editor");
+  const cards = container ? Array.from(container.querySelectorAll("[data-provider-card]")) : [];
+  const providers = {};
+  const seenKeys = new Set();
 
-function clearProviderJsonError(card) {
-  const jsonInput = card?.querySelector(".provider-json-config");
-  const jsonErrorText = card?.querySelector(".provider-json-error");
-  if (jsonInput) jsonInput.classList.remove("json-error");
-  if (jsonErrorText) jsonErrorText.style.display = "none";
-}
+  // 用于拦截弹窗并显示错误的状态位
+  let hasError = false;
 
-function showProviderJsonError(card) {
-  const jsonInput = card?.querySelector(".provider-json-config");
-  const jsonErrorText = card?.querySelector(".provider-json-error");
-  if (jsonInput) jsonInput.classList.add("json-error");
-  if (jsonErrorText) jsonErrorText.style.display = "flex";
-}
+  for (let i = 0; i < cards.length; i += 1) {
+    const card = cards[i];
+    const key = card.querySelector(".provider-key")?.value.trim() || "";
+    const baseUrl = card.querySelector(".provider-base-url")?.value.trim() || "";
+    const apiKey = card.querySelector(".provider-api-key")?.value.trim() || "";
+    const apiType = card.querySelector(".provider-api-type")?.value.trim() || "openai";
+    const jsonInput = card.querySelector(".provider-json-config");
+    const jsonErrorText = card.querySelector(".provider-json-error");
 
-function parseProviderJsonConfig(card, { strict = true, allowEmpty = true } = {}) {
-  const jsonInput = card?.querySelector(".provider-json-config");
-  if (!jsonInput) return {};
+    // 初始化错误提示类和文字隐现
+    if (jsonInput) jsonInput.classList.remove("json-error");
+    if (jsonErrorText) jsonErrorText.style.display = "none";
 
-  const raw = jsonInput.value.trim();
-  if (!raw) {
-    clearProviderJsonError(card);
-    return allowEmpty ? {} : null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("必须是 JSON 对象");
-    }
-    clearProviderJsonError(card);
-    return parsed;
-  } catch (err) {
-    if (strict) {
-      showProviderJsonError(card);
-      throw err;
-    }
-    return null;
-  }
-}
-
-function collectProviderModelsFromCard(card, { strict = true, keyForError = "未命名" } = {}) {
-  const modelRows = Array.from(card.querySelectorAll("[data-provider-model-row]"));
-  const models = [];
-
-  for (let rowIndex = 0; rowIndex < modelRows.length; rowIndex += 1) {
-    const modelRow = modelRows[rowIndex];
-    const modelId = modelRow.querySelector(".provider-model-id")?.value.trim() || "";
-    const contextWindowRaw = modelRow.querySelector(".provider-model-context")?.value.trim() || "";
-    const reasoning = modelRow.querySelector(".provider-model-reasoning-toggle")?.checked === true;
-    const inputText = modelRow.querySelector(".provider-model-input")?.value.trim() || "";
-    const extrasRaw = modelRow.querySelector(".provider-model-extras")?.value || "{}";
-
-    if (!modelId && !contextWindowRaw && !reasoning && !inputText) continue;
-    if (!modelId) {
-      if (strict) throw new Error(`Provider ${keyForError} 的第 ${rowIndex + 1} 个模型缺少 ID`);
-      continue;
-    }
-
-    const inputValues = inputText
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean);
-
-    let contextWindow = null;
-    if (contextWindowRaw) {
-      const parsedWindow = Number(contextWindowRaw);
-      if (!Number.isInteger(parsedWindow) || parsedWindow <= 0) {
-        if (strict) throw new Error(`Provider ${keyForError} 的模型 ${modelId} 上下文窗口必须是正整数`);
+    let extraConfig = {};
+    if (jsonInput && jsonInput.value.trim()) {
+      try {
+        extraConfig = JSON.parse(jsonInput.value);
+        if (typeof extraConfig !== "object" || Array.isArray(extraConfig)) {
+          throw new Error("Must be an object");
+        }
+      } catch (e) {
+        jsonInput.classList.add("json-error");
+        if (jsonErrorText) jsonErrorText.style.display = "flex";
+        hasError = true;
+        showToast(`Provider '${key}' 的高级 JSON 格式错误: ${e.message}`, "error");
         continue;
       }
-      contextWindow = parsedWindow;
     }
 
-    let extras = {};
-    try {
-      const parsedExtras = JSON.parse(extrasRaw);
-      if (parsedExtras && typeof parsedExtras === "object" && !Array.isArray(parsedExtras)) {
-        extras = parsedExtras;
+    const modelRows = Array.from(card.querySelectorAll("[data-provider-model-row]"));
+    const models = [];
+
+    for (let rowIndex = 0; rowIndex < modelRows.length; rowIndex += 1) {
+      const modelRow = modelRows[rowIndex];
+      const modelId = modelRow.querySelector(".provider-model-id")?.value.trim() || "";
+      const contextWindowRaw = modelRow.querySelector(".provider-model-context")?.value.trim() || "";
+      const reasoning = modelRow.querySelector(".provider-model-reasoning-toggle")?.checked === true;
+      const inputText = modelRow.querySelector(".provider-model-input")?.value.trim() || "";
+      const extrasRaw = modelRow.querySelector(".provider-model-extras")?.value || "{}";
+
+      if (!modelId && !contextWindowRaw && !reasoning && !inputText) continue;
+      if (!modelId) throw new Error(`Provider ${key || `#${i + 1}`} 的第 ${rowIndex + 1} 个模型缺少 ID`);
+
+      const inputValues = inputText
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
+
+      let contextWindow = null;
+      if (contextWindowRaw) {
+        const parsedWindow = Number(contextWindowRaw);
+        if (!Number.isInteger(parsedWindow) || parsedWindow <= 0) {
+          throw new Error(`Provider ${key || `#${i + 1}`} 的模型 ${modelId} 上下文窗口必须是正整数`);
+        }
+        contextWindow = parsedWindow;
       }
-    } catch {
-      extras = {};
+
+      let extras = {};
+      try {
+        const parsedExtras = JSON.parse(extrasRaw);
+        if (parsedExtras && typeof parsedExtras === "object" && !Array.isArray(parsedExtras)) {
+          extras = parsedExtras;
+        }
+      } catch {
+        extras = {};
+      }
+
+      delete extras.id;
+      delete extras.model;
+      delete extras.reasoning;
+      delete extras.contextWindow;
+      delete extras.input;
+
+      const useObjectShape = reasoning || contextWindow !== null || inputValues.length > 0 || Object.keys(extras).length > 0;
+      if (!useObjectShape) {
+        models.push(modelId);
+        continue;
+      }
+
+      const modelPayload = { ...extras, id: modelId };
+      if (reasoning) modelPayload.reasoning = true;
+      if (contextWindow !== null) modelPayload.contextWindow = contextWindow;
+      if (inputValues.length > 0) modelPayload.input = inputValues;
+      models.push(modelPayload);
     }
 
-    delete extras.id;
-    delete extras.model;
-    delete extras.reasoning;
-    delete extras.contextWindow;
-    delete extras.input;
-
-    const useObjectShape = reasoning || contextWindow !== null || inputValues.length > 0 || Object.keys(extras).length > 0;
-    if (!useObjectShape) {
-      models.push(modelId);
+    if (!key && !baseUrl && !apiKey && models.length === 0) continue;
+    if (!key) {
+      showToast(`第 ${i + 1} 个 Provider 缺少 Key`, "error");
+      hasError = true;
       continue;
     }
-
-    const modelPayload = { ...extras, id: modelId };
-    if (reasoning) modelPayload.reasoning = true;
-    if (contextWindow !== null) modelPayload.contextWindow = contextWindow;
-    if (inputValues.length > 0) modelPayload.input = inputValues;
-    models.push(modelPayload);
-  }
-
-  return models;
-}
-
-function collectProviderFormState(card, { strict = true } = {}) {
-  const key = card.querySelector(".provider-key")?.value.trim() || "";
-  const baseUrl = card.querySelector(".provider-base-url")?.value.trim() || "";
-  const apiKey = card.querySelector(".provider-api-key")?.value.trim() || "";
-  const apiType = card.querySelector(".provider-api-type")?.value.trim() || "openai";
-  const models = collectProviderModelsFromCard(card, { strict, keyForError: key || "未命名" });
-
-  if (strict) {
-    if (!key && !baseUrl && !apiKey && models.length === 0) {
-      throw new Error("请先填写当前 Provider 配置");
+    if (seenKeys.has(key)) {
+      showToast(`Provider Key 重复：${key}`, "error");
+      hasError = true;
+      continue;
     }
-    if (!key) throw new Error("Provider Key 不能为空");
-    if (models.length === 0) throw new Error(`Provider ${key} 至少需要一个模型`);
-  }
-
-  const providerConfig = {
-    baseUrl,
-    apiKey,
-    apiType: apiType || "openai",
-    models
-  };
-
-  return { key, providerConfig };
-}
-
-function mergeProviderConfigWithJson(formConfig, jsonConfig) {
-  const extras = cloneProviderConfig(jsonConfig);
-  for (const key of PROVIDER_MANAGED_KEYS) {
-    delete extras[key];
-  }
-  return { ...extras, ...formConfig };
-}
-
-function sanitizeProvidersForSave(providers) {
-  const sanitized = cloneProviderConfig(providers);
-  for (const [providerKey, provider] of Object.entries(sanitized)) {
-    if (!provider || typeof provider !== "object" || Array.isArray(provider)) continue;
-    const apiKey = typeof provider.apiKey === "string" ? provider.apiKey.trim() : "";
-    if (apiKey === REDACTED_API_KEY_TOKEN) {
-      delete provider.apiKey;
-      sanitized[providerKey] = provider;
+    if (models.length === 0) {
+      showToast(`Provider ${key} 至少需要一个模型`, "error");
+      hasError = true;
+      continue;
     }
-  }
-  return sanitized;
-}
+    seenKeys.add(key);
 
-function syncProviderJsonFromForm(card) {
-  if (!card || card.dataset.jsonSyncLock === "1") return;
-  const jsonInput = card.querySelector(".provider-json-config");
-  if (!jsonInput) return;
+    const originalKey = card.getAttribute("data-original-key") || "";
+    // 不再合并旧的 snapshot 以防 JSON 被抹除，完全按表单+JSON文本区数据定夺
+    const providerConfig = { ...extraConfig };
 
-  const { providerConfig } = collectProviderFormState(card, { strict: false });
-  const jsonConfig = parseProviderJsonConfig(card, { strict: false, allowEmpty: true }) || {};
-  const merged = mergeProviderConfigWithJson(providerConfig, jsonConfig);
-
-  card.dataset.jsonSyncLock = "1";
-  jsonInput.value = JSON.stringify(merged, null, 2);
-  card.dataset.jsonSyncLock = "0";
-}
-
-function fillProviderFormFromJson(card, { silent = false } = {}) {
-  const jsonConfig = parseProviderJsonConfig(card, { strict: true, allowEmpty: true });
-  if (!jsonConfig || Object.keys(jsonConfig).length === 0) {
-    if (!silent) showToast("JSON 为空，无法回填表单", "warning");
-    return false;
+    providerConfig.baseUrl = baseUrl;
+    providerConfig.apiKey = apiKey;
+    providerConfig.apiType = apiType || "openai";
+    providerConfig.models = models;
+    providers[key] = providerConfig;
   }
 
-  const baseUrl =
-    (typeof jsonConfig.baseUrl === "string" && jsonConfig.baseUrl) ||
-    (typeof jsonConfig.baseURL === "string" && jsonConfig.baseURL) ||
-    (typeof jsonConfig.url === "string" && jsonConfig.url) ||
-    "";
-  const apiKey = (typeof jsonConfig.apiKey === "string" && jsonConfig.apiKey) || "";
-  const apiType =
-    (typeof jsonConfig.apiType === "string" && jsonConfig.apiType) ||
-    (typeof jsonConfig.type === "string" && jsonConfig.type) ||
-    "openai";
+  if (hasError) throw new Error("JSON_Validation_Failed");
 
-  const keyInput = card.querySelector(".provider-key");
-  const baseUrlInput = card.querySelector(".provider-base-url");
-  const apiKeyInput = card.querySelector(".provider-api-key");
-  const apiTypeSelect = card.querySelector(".provider-api-type");
-  const modelList = card.querySelector(".provider-model-list");
-
-  if (baseUrlInput) baseUrlInput.value = baseUrl;
-  if (apiKeyInput) apiKeyInput.value = apiKey;
-
-  if (apiTypeSelect) {
-    if (!Array.from(apiTypeSelect.options).some((opt) => opt.value === apiType)) {
-      apiTypeSelect.insertAdjacentHTML("afterbegin", `<option value="${escapeHtml(apiType)}">${escapeHtml(apiType)}</option>`);
-    }
-    apiTypeSelect.value = apiType;
-  }
-
-  const normalizedRows = normalizeProviderModels(jsonConfig.models, true);
-  if (modelList) {
-    modelList.innerHTML = normalizedRows.map((row) => providerModelRowTemplate(row)).join("");
-  }
-
-  if (keyInput && !keyInput.value.trim()) {
-    keyInput.focus();
-  }
-
-  clearProviderJsonError(card);
-  syncProviderJsonFromForm(card);
-  if (!silent) showToast("已根据 JSON 回填当前 Provider 表单", "success");
-  return true;
-}
-
-function collectCurrentProvider() {
-  const card = document.querySelector("#models-providers-editor [data-provider-card]");
-  if (!card) {
-    throw new Error("未找到当前 Provider 编辑表单");
-  }
-
-  fillProviderFormFromJson(card, { silent: true });
-
-  const { key, providerConfig } = collectProviderFormState(card, { strict: true });
-  const jsonConfig = parseProviderJsonConfig(card, { strict: true, allowEmpty: true });
-  const mergedConfig = mergeProviderConfigWithJson(providerConfig, jsonConfig);
-
-  return { key, providerConfig: mergedConfig };
-}
-
-function saveCurrentProvider() {
-  try {
-    const { key, providerConfig } = collectCurrentProvider();
-    const originalKey = state.providerEditor.originalKey;
-    const previousProvider = originalKey ? state.modelProvidersDraft[originalKey] : null;
-    const previousApiKey = typeof previousProvider?.apiKey === "string" ? previousProvider.apiKey.trim() : "";
-    const currentApiKey = typeof providerConfig.apiKey === "string" ? providerConfig.apiKey.trim() : "";
-    const previousWasRedacted = previousApiKey === REDACTED_API_KEY_TOKEN;
-
-    if (currentApiKey === REDACTED_API_KEY_TOKEN) {
-      if (state.providerEditor.mode !== "edit" || !previousWasRedacted) {
-        throw new Error("`__OPENCLAW_REDACTED__` 是脱敏占位符，请输入真实 API Key");
-      }
-      if (key !== originalKey) {
-        throw new Error("当前 API Key 为脱敏状态，重命名 Provider 前请先填写真实 API Key");
-      }
-    }
-
-    if (key !== originalKey && Object.prototype.hasOwnProperty.call(state.modelProvidersDraft, key)) {
-      throw new Error(`Provider Key 重复：${key}`);
-    }
-
-    if (originalKey && originalKey !== key) {
-      delete state.modelProvidersDraft[originalKey];
-    }
-
-    state.modelProvidersDraft[key] = providerConfig;
-    renderProviderMatrix(state.modelProvidersDraft);
-    setProviderEditorDirty(false);
-    closeProviderModal({ force: true });
-    showToast(`Provider ${key} 已保存到草稿，点击顶部“保存并应用”后生效`, "success");
-  } catch (err) {
-    showToast(err.message || String(err), "error");
-  }
-}
-
-function deleteCurrentProvider() {
-  const targetKey = state.providerEditor.originalKey;
-  if (!targetKey) {
-    showToast("当前是新增模式，没有可删除的 Provider", "warning");
-    return;
-  }
-
-  const confirmed = window.confirm(`确定删除 Provider "${targetKey}" 吗？删除后需点击顶部“保存并应用”才会真正生效。`);
-  if (!confirmed) return;
-
-  if (Object.prototype.hasOwnProperty.call(state.modelProvidersDraft, targetKey)) {
-    delete state.modelProvidersDraft[targetKey];
-    renderProviderMatrix(state.modelProvidersDraft);
-  }
-
-  setProviderEditorDirty(false);
-  closeProviderModal({ force: true });
-  showToast(`Provider ${targetKey} 已从草稿中移除`, "success");
+  return providers;
 }
 
 // （模型选择器和绑定逻辑已移除）
@@ -1270,13 +1072,13 @@ async function loadModels() {
 
     const cfg = data.modelsConfig || {};
     const providers = cfg.providers || {};
-    state.modelProvidersDraft = {};
+    state.modelProviderSnapshots = {};
     for (const [key, provider] of Object.entries(providers)) {
-      state.modelProvidersDraft[key] = cloneProviderConfig(provider);
+      state.modelProviderSnapshots[key] = cloneProviderConfig(provider);
     }
 
-    renderProviderEditor("", {}, "");
-    renderProviderMatrix(state.modelProvidersDraft);
+    renderProviderEditors(providers);
+    renderProviderMatrix(providers);
   } catch (err) {
     showToast(err.message || String(err), "error");
   }
@@ -1284,12 +1086,7 @@ async function loadModels() {
 
 async function saveModels() {
   try {
-    if (state.providerModalOpen && state.providerEditor.dirty) {
-      showToast("请先保存当前供应商，或取消本次编辑后再执行“保存并应用”", "warning");
-      return;
-    }
-
-    const providers = sanitizeProvidersForSave(state.modelProvidersDraft);
+    const providers = collectProviders();
 
     if (Object.keys(providers).length === 0) {
       showToast("没有任何 Provider 数据！", "error");
@@ -1312,7 +1109,7 @@ async function saveModels() {
       btn.disabled = true;
     }
 
-    await api("/api/models/save", {
+    const result = await api("/api/models/save", {
       method: "POST",
       body: JSON.stringify(payload)
     });
@@ -1336,56 +1133,16 @@ async function saveModels() {
   }
 }
 
-function normalizeSkillMissing(missing) {
-  const source = missing && typeof missing === "object" ? missing : {};
-  const toList = (value) => (Array.isArray(value)
-    ? value.map((item) => String(item).trim()).filter(Boolean)
-    : []);
-
-  return {
-    bins: toList(source.bins),
-    anyBins: toList(source.anyBins),
-    env: toList(source.env),
-    config: toList(source.config),
-    os: toList(source.os)
-  };
-}
-
-function buildSkillNotReadyReasons(skill) {
-  const reasons = [];
-  if (skill.disabled) reasons.push("已手动停用（enabled=false）");
-  if (skill.blockedByAllowlist) reasons.push("未在 allowBundled 白名单中");
-  if (skill.missing.bins.length > 0) reasons.push(`缺少命令：${skill.missing.bins.join(", ")}`);
-  if (skill.missing.anyBins.length > 0) reasons.push(`至少安装其一命令：${skill.missing.anyBins.join(", ")}`);
-  if (skill.missing.env.length > 0) reasons.push(`缺少环境变量：${skill.missing.env.join(", ")}`);
-  if (skill.missing.config.length > 0) reasons.push(`缺少配置项：${skill.missing.config.join(", ")}`);
-  if (skill.missing.os.length > 0) reasons.push(`系统不兼容：${skill.missing.os.join(", ")}`);
-  if (reasons.length === 0) reasons.push("未满足运行条件");
-  return reasons;
-}
-
 async function loadSkills() {
-  const tableActive = $("skills-table-active");
-  const tablePending = $("skills-table-pending");
-  const tableDisabled = $("skills-table-disabled");
-  const tableBlocked = $("skills-table-blocked");
-
-  if (tableActive) tableActive.innerHTML = renderSkeleton(3);
-  if (tablePending) tablePending.innerHTML = renderSkeleton(1);
-
+  const target = $("skills-table");
+  target.innerHTML = renderSkeleton(6);
   try {
     const data = await api("/api/skills");
     const skills = data.skills || [];
-
     if (skills.length === 0) {
-      const emptyHtml = renderEmpty("fa-solid fa-box-open", "技能箱是空的", "还没有安装任何技能，快去添加一些吧！");
-      if (tableActive) tableActive.innerHTML = emptyHtml;
-      if (tablePending) tablePending.innerHTML = emptyHtml;
-      if (tableDisabled) tableDisabled.innerHTML = emptyHtml;
-      if (tableBlocked) tableBlocked.innerHTML = emptyHtml;
+      target.innerHTML = renderEmpty("fa-solid fa-box-open", "技能箱是空的", "还没有安装任何技能，快去添加一些吧！");
       return;
     }
-
     const rows = skills
       .slice()
       .sort((a, b) => String(a.name).localeCompare(String(b.name)))
@@ -1395,152 +1152,72 @@ async function loadSkills() {
         source: skill.source,
         key: skill.skillKey,
         enabled: !skill.disabled,
-        eligible: skill.eligible === true,
-        disabled: skill.disabled === true,
-        blockedByAllowlist: skill.blockedByAllowlist === true,
-        missing: normalizeSkillMissing(skill.missing)
+        eligible: skill.eligible
       }));
 
-    // 划分四个象限
-    const activeSkills = rows.filter(s => s.enabled && s.eligible);
-    const blockedSkills = rows.filter(s => s.blockedByAllowlist);
-    const pendingSkills = rows.filter(s => !s.eligible && !s.blockedByAllowlist);
-    const disabledSkills = rows.filter(s => s.eligible && !s.enabled);
+    const html = renderTable(
+      [
+        {
+          title: "技能名称",
+          className: "col-w-sm",
+          render: (r) => `<div style="display:flex; flex-direction:column; gap:4px; text-align: left;">
+                            <strong style="font-size: 1rem; color: var(--text-primary); font-weight: 500;">${escapeHtml(r.name.replace(/\s*\(.*?\)/, ''))}</strong>
+                            <span style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono); letter-spacing: 0.5px;">${escapeHtml(r.key)}</span>
+                          </div>`
+        },
+        {
+          title: "功能描述",
+          className: "col-w-lg",
+          render: (r) => `<div style="width: 100%; white-space: normal; line-height: 1.6; color: var(--text-secondary); font-size: 0.85rem; padding: 4px 0; text-align: left;">${escapeHtml(r.description || "-")}</div>`
+        },
+        {
+          title: "来源位置",
+          className: "col-w-sm",
+          align: "center",
+          render: (r) => `<span style="margin:0; display:inline-block; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; background: rgba(128, 128, 128, 0.1); border: 1px solid var(--glass-border); color: var(--text-secondary);">${escapeHtml(r.source)}</span>`
+        },
+        {
+          title: "启用状态",
+          align: "center",
+          render: (r) => `
+            <label class="switch-toggle" style="margin:0 auto; display:block;">
+              <input type="checkbox" data-skill-toggle="${escapeHtml(r.key)}" ${r.enabled ? "checked" : ""} />
+              <span class="slider">
+                <span class="knob"></span>
+              </span>
+            </label>`
+        },
+        {
+          title: "可用性",
+          align: "center",
+          render: (r) => `<span style="display:inline-block; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 500; ${r.eligible ? 'background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.3);' : 'background: rgba(251, 191, 36, 0.15); color: var(--warning); border: 1px solid rgba(251, 191, 36, 0.3);'}">${r.eligible ? '就绪' : '未就绪'}</span>`
+        }
+      ],
+      rows
+    );
 
-    const renderSkillEntry = (skill, { category }) => {
-      const cleanName = skill.name.replace(/\s*\(.*?\)/, "");
-      const reasons = buildSkillNotReadyReasons(skill);
-      let reasonBlock = "";
+    target.innerHTML = html;
 
-      if (category === "active") {
-        reasonBlock = `
-          <div style="display: flex; align-items: center; gap: 6px; margin-top:12px; color: var(--success); font-weight: 500; font-size:0.85rem;">
-            <i class="fa-solid fa-bolt"></i>
-            <span>技能活跃中，将自动参与协同</span>
-          </div>
-        `;
-      } else if (category === "blocked") {
-        reasonBlock = `
-          <div style="display: flex; align-items: center; gap: 8px; margin-top:12px; color: var(--danger); font-size:0.85rem; background: rgba(239, 68, 68, 0.1); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3);">
-            <i class="fa-solid fa-ban"></i>
-            <span>被所属节点组的安全白名单拦截，禁止强制运行。</span>
-          </div>
-        `;
-      } else if (category === "pending") {
-        const missHtml = reasons.map(r => `<li style="margin-bottom: 4px;">${escapeHtml(r)}</li>`).join("");
-        reasonBlock = `
-          <div style="display: flex; flex-direction: column; gap: 8px; margin-top:12px; color: var(--warning); font-size:0.85rem; background: rgba(251, 191, 36, 0.08); padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(251, 191, 36, 0.25);">
-            <div style="font-weight: 600; display: flex; align-items: center; gap: 6px; font-size: 0.9rem;">
-              <i class="fa-solid fa-triangle-exclamation"></i>缺少必要运行条件
-            </div>
-            <ul style="margin: 4px 0 0 0; padding-left: 24px; opacity: 0.95; list-style-type: disc;">${missHtml}</ul>
-            <div style="margin-top: 4px; font-size: 0.8rem; opacity: 0.75; font-style: italic;">提示：请在终端服务器补齐环境变量或依赖包后，尝试在此重新开启。</div>
-          </div>
-        `;
-      } else if (category === "disabled") {
-        reasonBlock = `
-          <div style="display: flex; align-items: center; gap: 8px; margin-top:12px; color: var(--text-muted); font-size:0.85rem; background: rgba(255,255,255, 0.04); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
-            <i class="fa-solid fa-power-off"></i>
-            <span>已停用该模块，拨动右侧开关启用即可恢复。</span>
-          </div>
-        `;
-      }
-
-      // 禁用开关判定（被组策略阻止不能开）
-      const toggleDisabled = category === "blocked" ? "disabled" : "";
-
-      return `
-        <article class="skill-entry" style="padding: 20px; border-bottom: 1px solid var(--border-default); display: flex; align-items: flex-start; gap: 16px; transition: background 0.2s;">
-          <div class="skill-entry-main" style="flex: 1;">
-            <div class="skill-entry-head" style="margin-bottom: 8px;">
-              <strong class="skill-entry-name" style="font-size: 1.1rem; letter-spacing: 0.2px;">${escapeHtml(cleanName)}</strong>
-              <span class="skill-chip skill-chip-source" style="margin-left:8px;">${escapeHtml(skill.source)}</span>
-            </div>
-            <div class="skill-entry-key" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">${escapeHtml(skill.key)}</div>
-            <div class="skill-entry-description" style="color: var(--foreground-subtle); font-size: 0.9rem; line-height: 1.4;">${escapeHtml(skill.description || "暂无技能描述。")}</div>
-            ${reasonBlock}
-          </div>
-          <div style="display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-width: 60px;">
-             <label class="switch-toggle skill-entry-toggle" aria-label="切换状态" style="${category === 'blocked' ? 'opacity: 0.5; filter: grayscale(1); cursor: not-allowed;' : ''}">
-              <input type="checkbox" data-skill-toggle="${escapeHtml(skill.key)}" ${skill.enabled ? "checked" : ""} ${toggleDisabled} />
-              <span class="slider"><span class="knob"></span></span>
-            </label>
-            <span style="font-size: 0.75rem; color: var(--foreground-muted); margin-top: 8px; font-weight: 600;">${skill.enabled ? '已启用' : '未启用'}</span>
-          </div>
-        </article>
-      `;
-    };
-
-    const renderList = (items, category, emptyMsg) => {
-      if (items.length === 0) {
-        return `<div style="padding: 30px; text-align: center; color: var(--text-muted); font-size: 0.95rem;">${emptyMsg}</div>`;
-      }
-      return items.map((skill) => renderSkillEntry(skill, { category })).join("");
-    };
-
-    if (tableActive) tableActive.innerHTML = renderList(activeSkills, "active", "没有位于活跃状态的技能。");
-    if (tablePending) tablePending.innerHTML = renderList(pendingSkills, "pending", "太棒了，目前所有可用的技能都已就绪！");
-    if (tableDisabled) tableDisabled.innerHTML = renderList(disabledSkills, "disabled", "目前没有手动停用的闲置技能。");
-    if (tableBlocked) tableBlocked.innerHTML = renderList(blockedSkills, "blocked", "目前没有被系统阻止的技能。");
-
-    // 绑定所有的开关动作并劫持刷新
-    const bindToggles = () => {
-      for (const toggle of document.querySelectorAll("[data-skill-toggle]")) {
-        toggle.addEventListener("change", async () => {
-          const skillKey = toggle.getAttribute("data-skill-toggle");
-          const enabled = toggle.checked;
-          if (!skillKey) return;
-          try {
-            await api("/api/skills/update", {
-              method: "POST",
-              body: JSON.stringify({ skillKey, enabled })
-            });
-            // 变更后立即局部重新拉取，触发流转
-            await loadSkills();
-          } catch (err) {
-            alert(err.message);
-            toggle.checked = !enabled;
-          }
-        });
-      }
-    };
-
-    bindToggles();
-
+    for (const toggle of target.querySelectorAll("[data-skill-toggle]")) {
+      toggle.addEventListener("change", async () => {
+        const skillKey = toggle.getAttribute("data-skill-toggle");
+        const enabled = toggle.checked;
+        if (!skillKey) return;
+        try {
+          await api("/api/skills/update", {
+            method: "POST",
+            body: JSON.stringify({ skillKey, enabled })
+          });
+        } catch (err) {
+          alert(err.message);
+          toggle.checked = !enabled;
+        }
+      });
+    }
   } catch (err) {
-    if (tableActive) tableActive.textContent = err.message;
+    target.textContent = err.message;
   }
 }
-
-// 绑定技能面板切换事件
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest(".skills-tab-btn");
-  if (!btn) return;
-
-  document.querySelectorAll(".skills-tab-btn").forEach(b => {
-    b.classList.remove("active");
-    b.style.color = "var(--text-muted)";
-    b.style.background = "transparent";
-    b.style.boxShadow = "none";
-  });
-
-  btn.classList.add("active");
-  btn.style.color = "var(--foreground)";
-  btn.style.background = "rgba(255,255,255,0.1)";
-  btn.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.1)";
-
-  const targetId = btn.getAttribute("data-target") + "-panel";
-  document.querySelectorAll(".skills-panel").forEach(p => {
-    p.style.display = "none";
-    p.classList.remove("active");
-  });
-
-  const panel = document.getElementById(targetId);
-  if (panel) {
-    panel.style.display = "block";
-    panel.classList.add("active");
-  }
-});
 
 function cronTemplate() {
   return {
@@ -1648,7 +1325,7 @@ async function loadCron() {
           <div style="display: flex; gap: 8px; margin-top: auto; padding-top: 8px;">
             <button data-cron-run="${escapeHtml(r.id)}" class="action-btn play-btn" style="flex: 1; justify-content: center; background: rgba(59, 112, 252, 0.15); color: #82b0ff; border-color: rgba(59, 112, 252, 0.3);" title="立即执行"><i class="fa-solid fa-play" style="margin-right: 6px;"></i>执行</button>
             <button data-cron-runs="${escapeHtml(r.id)}" class="action-btn log-btn" style="flex: 1; justify-content: center;" title="运行日志"><i class="fa-solid fa-clock-rotate-left" style="margin-right: 6px;"></i>日志</button>
-            <button data-cron-remove="${escapeHtml(r.id)}" class="action-btn danger-action-btn" style="flex: 1; justify-content: center;" title="删除任务"><i class="fa-solid fa-trash-can" style="margin-right: 6px;"></i>删除</button>
+            <button data-cron-remove="${escapeHtml(r.id)}" class="action-btn del-btn" style="flex: 1; justify-content: center;" title="删除任务"><i class="fa-solid fa-trash-can" style="margin-right: 6px;"></i>删除</button>
           </div>
         </div>
       `;
@@ -2047,236 +1724,3 @@ function logoutBasicAuth() {
   window.location.href = "/login.html";
 }
 
-function bindEvents() {
-  // 最高优：确保配置面板的控制大按钮随时就绪
-  $("models-save")?.addEventListener("click", saveModels);
-  $("models-reload")?.addEventListener("click", loadModels);
-  $("models-provider-add")?.addEventListener("click", () => openProviderModal({ mode: "create" }));
-  $("models-provider-save-current")?.addEventListener("click", saveCurrentProvider);
-  $("models-provider-delete-current")?.addEventListener("click", deleteCurrentProvider);
-
-  for (const nav of document.querySelectorAll("#nav-menu .nav-item")) {
-    nav.addEventListener("click", (event) => {
-      event.preventDefault();
-      setView(nav.dataset.view);
-      $("sidebar")?.classList.remove("active");
-    });
-  }
-
-  $("mobile-toggle")?.addEventListener("click", () => {
-    $("sidebar")?.classList.toggle("active");
-  });
-
-  $("logout-btn")?.addEventListener("click", (event) => {
-    event.preventDefault();
-    logoutBasicAuth();
-  });
-
-  const overviewRefreshBtn = $("overview-refresh");
-  if (overviewRefreshBtn) {
-    overviewRefreshBtn.addEventListener("click", async () => {
-      if (overviewRefreshBtn.disabled) return;
-      const label = overviewRefreshBtn.innerHTML;
-      overviewRefreshBtn.disabled = true;
-      overviewRefreshBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 刷新中';
-      try {
-        await Promise.all([loadOverview(), loadSystemLoad()]);
-      } finally {
-        overviewRefreshBtn.disabled = false;
-        overviewRefreshBtn.innerHTML = label;
-      }
-    });
-  }
-
-  const providerMatrix = $("models-provider-matrix");
-  providerMatrix?.addEventListener("click", (event) => {
-    if (event.target.closest("[data-provider-matrix-add]")) {
-      openProviderModal({ mode: "create" });
-      return;
-    }
-
-    const card = event.target.closest(".provider-card");
-    if (card) {
-      const providerKey = card.getAttribute("data-provider-key") || "";
-      openProviderModal({ mode: "edit", providerKey });
-    }
-  });
-
-  const providerModal = $("models-provider-modal");
-  providerModal?.addEventListener("click", (event) => {
-    if (!event.target.closest("[data-provider-modal-close]")) return;
-    closeProviderModal();
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || !state.providerModalOpen) return;
-    closeProviderModal();
-  });
-
-  const providerEditor = $("models-providers-editor");
-  providerEditor?.addEventListener("click", (event) => {
-    const applyJsonBtn = event.target.closest("[data-provider-json-apply]");
-    if (applyJsonBtn) {
-      const card = applyJsonBtn.closest("[data-provider-card]");
-      if (!card) return;
-      try {
-        const updated = fillProviderFormFromJson(card);
-        if (updated) setProviderEditorDirty(true);
-      } catch (err) {
-        showToast(`JSON 回填失败：${err.message || String(err)}`, "error");
-      }
-      return;
-    }
-
-    const addModelBtn = event.target.closest("[data-provider-model-add]");
-    if (addModelBtn) {
-      const card = addModelBtn.closest("[data-provider-card]");
-      const list = card?.querySelector(".provider-model-list");
-      appendProviderModelRow(list);
-      const input = list?.querySelector(".provider-model-row:last-child .provider-model-id");
-      input?.focus();
-      setProviderEditorDirty(true);
-      if (card) syncProviderJsonFromForm(card);
-      return;
-    }
-
-    const removeModelBtn = event.target.closest("[data-provider-model-remove]");
-    if (removeModelBtn) {
-      const card = removeModelBtn.closest("[data-provider-card]");
-      const row = removeModelBtn.closest("[data-provider-model-row]");
-      row?.remove();
-      const list = card?.querySelector(".provider-model-list");
-      if (list && !list.querySelector("[data-provider-model-row]")) appendProviderModelRow(list);
-      setProviderEditorDirty(true);
-      if (card) syncProviderJsonFromForm(card);
-      return;
-    }
-
-    const toggleBtn = event.target.closest("[data-secret-toggle]");
-    if (!toggleBtn) return;
-    const card = toggleBtn.closest("[data-provider-card]");
-    const input = card?.querySelector(".provider-api-key");
-    if (!input) return;
-
-    const reveal = input.type === "password";
-    input.type = reveal ? "text" : "password";
-    toggleBtn.classList.toggle("active", reveal);
-    toggleBtn.setAttribute("aria-label", reveal ? "隐藏 API Key" : "显示 API Key");
-    toggleBtn.setAttribute("title", reveal ? "隐藏 API Key" : "显示 API Key");
-    const icon = toggleBtn.querySelector("i");
-    if (icon) icon.className = reveal ? "fa-regular fa-eye-slash" : "fa-regular fa-eye";
-  });
-
-  providerEditor?.addEventListener("input", (event) => {
-    const card = event.target.closest("[data-provider-card]");
-    if (!card) return;
-    setProviderEditorDirty(true);
-    if (event.target.classList.contains("provider-json-config")) return;
-    syncProviderJsonFromForm(card);
-  });
-
-  providerEditor?.addEventListener("change", (event) => {
-    const card = event.target.closest("[data-provider-card]");
-    if (!card) return;
-    setProviderEditorDirty(true);
-    if (event.target.classList.contains("provider-json-config")) return;
-    syncProviderJsonFromForm(card);
-  });
-
-  $("models-alias-add")?.addEventListener("click", () => {
-    const container = $("models-alias-editor");
-    if (!container) return;
-    const row = document.createElement("div");
-    row.className = "alias-row";
-    row.style.cssText = "background: rgba(128,128,128,0.08); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--glass-border);";
-    row.innerHTML = `
-      <div style="flex: 1; min-width: 0; position: relative;">
-        <i class="fa-solid fa-quote-left" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.75rem; pointer-events: none;"></i>
-        <input type="text" class="alias-key" placeholder="别名 (如 rightcode)" value="" style="padding-left: 32px; margin: 0; width: 100%;" />
-      </div>
-      <i class="fa-solid fa-arrow-right" style="color: var(--text-muted); font-size: 0.8rem; flex-shrink: 0;"></i>
-      <div style="flex: 2; min-width: 0; position: relative;">
-        <i class="fa-solid fa-microchip" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.8rem; pointer-events: none;"></i>
-        <input type="text" class="alias-target" placeholder="目标模型 ID (如 rightcode/gpt-5.3-codex)" value="" style="padding-left: 32px; margin: 0; width: 100%;" />
-      </div>
-      <button type="button" class="alias-remove danger-action-btn" title="删除"><i class="fa-regular fa-trash-can"></i></button>
-    `;
-    row.querySelector(".alias-remove")?.addEventListener("click", () => row.remove());
-    container.appendChild(row);
-  });
-  $("cron-add")?.addEventListener("click", addCronJob);
-
-  // Setup Cron Tab interactions
-  const tabForm = $("cron-tab-form");
-  const tabJson = $("cron-tab-json");
-  const viewForm = $("cron-view-form");
-  const viewJson = $("cron-view-json");
-  state.cronJsonMode = false;
-
-  if (tabForm && tabJson) {
-    tabForm.addEventListener("click", () => {
-      tabForm.classList.add("active");
-      tabJson.classList.remove("active");
-      viewForm.style.display = "block";
-      viewJson.style.display = "none";
-      state.cronJsonMode = false;
-    });
-    tabJson.addEventListener("click", () => {
-      tabJson.classList.add("active");
-      tabForm.classList.remove("active");
-      viewJson.style.display = "block";
-      viewForm.style.display = "none";
-      state.cronJsonMode = true;
-    });
-  }
-
-  // Setup Cron Form Type interaction
-  const kindSelect = $("cron-form-kind");
-  const valLabel = $("cron-form-value-label");
-  const valInput = $("cron-form-value");
-
-  if (kindSelect) {
-    kindSelect.addEventListener("change", () => {
-      const v = kindSelect.value;
-      const timePicker = $("cron-time-picker");
-
-      if (v === "cron") {
-        valLabel.textContent = "执行时间 (每天)";
-        valInput.style.display = "none";
-        timePicker.style.display = "flex";
-      } else if (v === "at") {
-        valLabel.textContent = "指定日期时间 (ISO格式)";
-        timePicker.style.display = "none";
-        valInput.style.display = "block";
-
-        // 生成一个友好的默认值（当前时间后一小时）
-        const tzOffset = (new Date()).getTimezoneOffset() * 60000;
-        const localISOTime = (new Date(Date.now() - tzOffset + 3600000)).toISOString().slice(0, 16);
-        valInput.type = "datetime-local";
-        valInput.value = localISOTime;
-
-      } else if (v === "every") {
-        valLabel.textContent = "间隔时间";
-        timePicker.style.display = "none";
-        valInput.style.display = "block";
-        valInput.type = "text";
-        valInput.placeholder = "输入算式，如 30 * 60000 (半小时)";
-        valInput.value = "60000";
-      }
-    });
-  }
-
-  $("cron-template")?.addEventListener("click", () => {
-    $("cron-job-json").value = JSON.stringify(cronTemplate(), null, 2);
-  });
-  $("node-invoke")?.addEventListener("click", invokeNodeCommand);
-}
-
-async function bootstrap() {
-  bindEvents();
-  initLogsView();
-  await loadHealth();
-  setView("overview");
-}
-
-bootstrap();

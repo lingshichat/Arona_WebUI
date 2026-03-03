@@ -48,20 +48,19 @@ applyTheme(savedTheme);
 
 // 添加主题切换按钮
 window.addEventListener('DOMContentLoaded', () => {
-  const sidebar = document.querySelector('.admin-sidebar');
-  if (sidebar) {
+  const footer = document.querySelector('.sidebar-footer');
+  if (footer) {
     const themeBtn = document.createElement('button');
     themeBtn.className = 'theme-switch-btn';
     themeBtn.innerHTML = '<i class="fa-solid fa-palette"></i> 切换主题';
-    themeBtn.style.cssText = 'margin: 15px; padding: 10px; border-radius: 8px; border: 1px solid var(--glass-border); background: var(--glass-bg); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: bold; transition: all 0.3s ease; width: calc(100% - 30px);';
-    
+
     themeBtn.addEventListener('click', () => {
       const current = localStorage.getItem('openclaw-theme') || 'dark';
       applyTheme(current === 'dark' ? 'light' : 'dark');
     });
-    
-    // 将按钮放在导航菜单下方
-    const nav = document.querySelector('.nav-menu');
-    nav.parentNode.insertBefore(themeBtn, nav.nextSibling);
+
+    // 将按钮放在 sidebar-footer 内部，退出按钮之前
+    const logoutWrap = footer.querySelector('.logout-wrap');
+    footer.insertBefore(themeBtn, logoutWrap);
   }
 });

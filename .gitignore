@@ -38,3 +38,12 @@ media/
 
 # backups
 *.bak
+
+# oh-my-claudecode state (session-specific, not project code)
+.omc/
+
+# claude code project config (auto-generated per user)
+.claude/
+CLAUDE.md
+.sisyphus/
+docs/
