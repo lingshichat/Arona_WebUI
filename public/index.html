@@ -642,6 +642,24 @@
       </div>
     </section>
   </div>
+  <div id="cron-runs-modal" class="provider-modal-shell cron-runs-modal-shell" aria-hidden="true">
+    <div class="provider-modal-backdrop" data-cron-runs-close></div>
+    <section class="provider-modal-panel cron-runs-modal-panel" role="dialog" aria-modal="true"
+      aria-labelledby="cron-runs-modal-title">
+      <div class="provider-modal-head">
+        <h3 id="cron-runs-modal-title" class="provider-modal-title">执行记录</h3>
+        <button type="button" class="provider-modal-close" data-cron-runs-close aria-label="关闭">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="provider-modal-body cron-runs-modal-body">
+        <div id="cron-runs-modal-content"></div>
+      </div>
+      <div class="provider-modal-foot">
+        <button type="button" class="panel-action-btn btn-secondary btn-ghost" data-cron-runs-close>关闭</button>
+      </div>
+    </section>
+  </div>
   <script type="module" src="/app.js?v=20260307-models-ui-v8"></script>
   <div id="toast-container" class="toast-container"></div>
 </body>

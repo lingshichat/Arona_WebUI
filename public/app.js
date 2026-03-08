@@ -402,6 +402,62 @@ function getSkillModalInitialSelector() {
   return apiKeyVisible ? "#skill-config-apikey" : "#skill-config-env-add";
 }
 
+// ── Cron Runs Modal ──
+
+function formatCronRunItem(run) {
+  const status = run.status || run.lastStatus || "unknown";
+  const isOk = status === "ok" || status === "success";
+  const isErr = status === "error" || status === "fail" || status === "failed";
+  const iconCls = isOk ? "fa-solid fa-circle-check cron-run-icon-ok" : isErr ? "fa-solid fa-circle-xmark cron-run-icon-err" : "fa-solid fa-circle-minus cron-run-icon-unknown";
+  const statusLabel = isOk ? "成功" : isErr ? "失败" : escapeHtml(status);
+
+  const ts = run.runAtMs || run.ts || run.startedAt || run.runAt || run.timestamp || run.createdAt;
+  const timeStr = ts ? new Date(typeof ts === "number" ? ts : ts).toLocaleString() : "-";
+  const duration = run.durationMs != null ? `${run.durationMs}ms` : run.duration || "";
+  const errMsg = run.error || run.errorMessage || "";
+
+  return `<div class="cron-run-item ${isErr ? "cron-run-item-err" : ""}">
+    <div class="cron-run-row">
+      <i class="${iconCls}"></i>
+      <span class="cron-run-status">${statusLabel}</span>
+      <span class="cron-run-time">${escapeHtml(timeStr)}</span>
+      ${duration ? `<span class="cron-run-duration">${escapeHtml(duration)}</span>` : ""}
+    </div>
+    ${errMsg ? `<div class="cron-run-error">${escapeHtml(errMsg)}</div>` : ""}
+  </div>`;
+}
+
+function openCronRunsModal(jobId, runs) {
+  const modal = $("cron-runs-modal");
+  const titleEl = $("cron-runs-modal-title");
+  const contentEl = $("cron-runs-modal-content");
+  if (!modal || !contentEl) return;
+
+  titleEl.textContent = `执行记录 — ${jobId}`;
+
+  if (!runs || runs.length === 0) {
+    contentEl.innerHTML = renderEmpty("fa-solid fa-inbox", "暂无执行记录", "该任务尚未产生运行日志");
+  } else {
+    contentEl.innerHTML = runs.map(formatCronRunItem).join("");
+  }
+
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("cron-runs-modal-open");
+  captureModalFocus("cron-runs-modal");
+}
+
+function closeCronRunsModal() {
+  const modal = $("cron-runs-modal");
+  if (!modal) return;
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  releaseModalFocus("cron-runs-modal");
+  document.body.classList.remove("cron-runs-modal-open");
+}
+
+// ── Confirm Dialog ──
+
 function settleConfirmDialog(confirmed) {
   const modal = $("global-confirm-modal");
   if (modal) {
@@ -1977,6 +2033,14 @@ async function loadModels({ silent = false, rethrow = false } = {}) {
     if (!silent) {
       showToast(err.message || String(err), "error");
     }
+    const matrix = $("models-provider-matrix");
+    if (matrix && !matrix.innerHTML.trim()) {
+      matrix.innerHTML = renderEmpty(
+        "fa-solid fa-plug-circle-xmark",
+        "无法加载模型配置",
+        '请检查网关连接后点击「重新加载」'
+      );
+    }
     if (rethrow) {
       throw err;
     }
@@ -2581,7 +2645,9 @@ async function loadCron() {
 
       const stateInfo = r.state || {};
       let statusBadge = '<span class="cron-status-empty">-</span>';
-      if (stateInfo.lastStatus === 'ok') {
+      if (typeof stateInfo.runningAtMs === 'number') {
+        statusBadge = '<span class="cron-status-running"><i class="fa-solid fa-spinner fa-spin icon-prefix-sm"></i>执行中</span>';
+      } else if (stateInfo.lastStatus === 'ok') {
         statusBadge = '<span class="cron-status-ok"><i class="fa-solid fa-check-circle icon-prefix-sm"></i>运行成功</span>';
       } else if (stateInfo.lastStatus === 'error') {
         statusBadge = '<span class="cron-status-error"><i class="fa-solid fa-xmark-circle icon-prefix-sm"></i>运行失败</span>';
@@ -2634,7 +2700,7 @@ async function loadCron() {
             body: JSON.stringify({ jobId, patch: { enabled } })
           });
         } catch (err) {
-          alert(err.message);
+          showToast(err.message || String(err), "error");
           checkbox.checked = !enabled;
         }
       });
@@ -2644,11 +2710,23 @@ async function loadCron() {
       btn.addEventListener("click", async () => {
         const jobId = btn.getAttribute("data-cron-run");
         if (!jobId) return;
+        btn.disabled = true;
+        const origHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin icon-prefix-md"></i>执行中';
         try {
           await api("/api/cron/run", { method: "POST", body: JSON.stringify({ jobId }) });
-          await loadCron();
+          showToast("任务执行完成", "success");
         } catch (err) {
-          alert(err.message);
+          const msg = (err.message || String(err)).toLowerCase();
+          if (msg.includes("timeout") || msg.includes("timed out")) {
+            showToast("任务已开始执行，等待完成中…", "info");
+          } else {
+            showToast(err.message || String(err), "error");
+          }
+        } finally {
+          await loadCron();
+          btn.disabled = false;
+          btn.innerHTML = origHTML;
         }
       });
     }
@@ -2657,15 +2735,15 @@ async function loadCron() {
       btn.addEventListener("click", async () => {
         const jobId = btn.getAttribute("data-cron-runs");
         if (!jobId) return;
+        btn.disabled = true;
         try {
           const runs = await api(`/api/cron/runs?jobId=${encodeURIComponent(jobId)}`);
-          const el = $("cron-result");
-          el.textContent = JSON.stringify(runs, null, 2);
-          el.classList.add("cron-result-visible");
+          const list = Array.isArray(runs) ? runs : (runs?.entries || runs?.runs || runs?.data || []);
+          openCronRunsModal(jobId, list);
         } catch (err) {
-          const el = $("cron-result");
-          el.classList.add("cron-result-visible");
-          showError("cron-result", err);
+          showToast(err.message || String(err), "error");
+        } finally {
+          btn.disabled = false;
         }
       });
     }
@@ -2684,9 +2762,10 @@ async function loadCron() {
         if (!confirmed) return;
         try {
           await api("/api/cron/remove", { method: "POST", body: JSON.stringify({ jobId }) });
+          showToast(`任务 ${jobId} 已删除`, "success");
           await loadCron();
         } catch (err) {
-          alert(err.message);
+          showToast(err.message || String(err), "error");
         }
       });
     }
@@ -6404,8 +6483,20 @@ function bindEvents() {
     }
   });
 
+  const cronRunsModal = $("cron-runs-modal");
+  cronRunsModal?.addEventListener("click", (event) => {
+    if (event.target.closest("[data-cron-runs-close]")) {
+      closeCronRunsModal();
+    }
+  });
+
   document.addEventListener("keydown", async (event) => {
     if (event.key !== "Escape") return;
+    if (document.body.classList.contains("cron-runs-modal-open")) {
+      event.preventDefault();
+      closeCronRunsModal();
+      return;
+    }
     if (state.confirmDialog.open) {
       event.preventDefault();
       settleConfirmDialog(false);

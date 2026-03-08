@@ -92,8 +92,18 @@ Env vars (see `.env.example`):
 Notes:
 
 - `.env.local` only fills keys that are missing from `process.env`; it never overwrites existing env.
+- **`.env.local` 包含完整的本地开发凭证**（WEBUI 登录 + 网关鉴权），可用于直接请求服务器 API 调试，无需手动操作浏览器。
 - Production server also reads `/root/.openclaw/openclaw.json` as fallback.
 - Browser Chat bootstrap uses `GATEWAY_PUBLIC_WS_URL` first, then reverse-proxy headers, then `GATEWAY_URL`.
+
+---
+
+## OpenClaw Gateway Source
+
+`openclaw-src/` 包含 OpenClaw 网关完整源码，可用于分析网关 RPC 协议和数据结构。当需要了解某个 gateway method 的返回格式时，应直接查阅网关源码而非猜测。
+
+已知数据结构：
+- `cron.runs` → `{ entries: [{ ts, jobId, action, status, error, runAtMs, durationMs, nextRunAtMs, model, provider, usage, ... }] }`
 
 ---
 
