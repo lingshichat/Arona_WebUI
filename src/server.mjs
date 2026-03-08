@@ -173,14 +173,15 @@ const publicDir = path.join(__dirname, "..", "public");
 
 function loadGatewayDefaults() {
   const defaults = {
-    url: "ws://100.68.146.126:18789",
-    origin: "https://openclaw.lingshichat.top",
+    url: "ws://127.0.0.1:18789",
+    origin: "http://localhost:18790",
     password: "",
     token: ""
   };
 
   try {
-    const raw = fs.readFileSync("/root/.openclaw/openclaw.json", "utf8");
+    const configPath = path.join(os.homedir(), ".openclaw", "openclaw.json");
+    const raw = fs.readFileSync(configPath, "utf8");
     const config = JSON.parse(raw);
     const remoteUrl = config?.gateway?.remote?.url;
     if (typeof remoteUrl === "string" && remoteUrl.trim()) defaults.url = remoteUrl.trim();
