@@ -100,6 +100,16 @@
 - Default agent delete button is hidden.
 - Browser warning copy must match backend protection behavior; frontend should not offer flows that backend will always reject.
 
+#### Layout contract (simplified UI)
+- **Sidebar**: Agent list only (no create panel). "+" button in header opens `#persona-create-modal`.
+- **Create modal** (`#persona-create-modal`): uses `provider-modal-shell` pattern with `captureModalFocus`/`releaseModalFocus`. On success calls `closePersonaCreateModal()` then `loadPersona()`.
+- **Right panel**: single `#persona-files-panel` (no separate metadata panel).
+- **Metadata bar** (`.persona-meta-bar`): collapsible bar between panel header and file tabs, rendered by `renderPersonaMetadataBar()` returning an HTML string consumed by `renderPersonaFilesPanel()`.
+  - Collapsed: shows agent glyph, name, workspace, badges, chevron toggle.
+  - Expanded (`.open`): shows name/workspace/avatar form + save/reset/delete actions.
+  - Toggle via `[data-persona-meta-toggle]` click handler on `persona-files-panel`.
+- When no agent is selected, the metadata bar is not rendered.
+
 ### 4. Validation & Error Matrix
 
 | Condition | State / UI behavior |
@@ -110,7 +120,7 @@
 | Stale list/files/file response arrives late | ignore it completely |
 | Metadata save in progress | disable save/delete/reset buttons |
 | File save/load in progress | editor read-only, reload/save buttons disabled |
-| No selected agent | metadata/files panels render empty guidance state |
+| No selected agent | files panel renders empty guidance state; metadata bar is hidden |
 
 ### 5. Good / Base / Bad Cases
 - Good:

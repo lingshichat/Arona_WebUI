@@ -898,7 +898,7 @@ body {
 
 .persona-layout {
   display: grid;
-  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
@@ -911,9 +911,7 @@ body {
   gap: 20px;
 }
 
-.persona-create-panel,
 .persona-agent-shell,
-.persona-detail-shell,
 .persona-files-shell {
   margin-bottom: 0;
 }
@@ -975,16 +973,6 @@ body {
   line-height: 1.6;
 }
 
-.persona-create-hint {
-  margin-top: 16px;
-}
-
-.persona-create-actions {
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  margin-top: 18px;
-}
-
 .persona-agent-shell {
   min-height: 460px;
   display: flex;
@@ -997,7 +985,7 @@ body {
   flex-direction: column;
   gap: 10px;
   min-height: 220px;
-  max-height: calc(100vh - 280px);
+  max-height: calc(100vh - 200px);
   overflow-y: auto;
 }
 
@@ -1085,66 +1073,117 @@ body {
   gap: 6px;
 }
 
-.persona-detail-body {
-  padding: 24px 24px 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+.persona-meta-bar {
+  border-bottom: 1px solid var(--border-default);
 }
 
-.persona-hero {
+.persona-meta-bar-summary {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 18px 20px;
-  border-radius: 18px;
-  border: 1px solid var(--border-default);
+  gap: 10px;
+  padding: 12px 24px;
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.persona-meta-bar-summary:hover {
   background: rgba(255, 255, 255, 0.03);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.persona-hero-avatar {
-  width: 56px;
-  height: 56px;
-  flex-shrink: 0;
-  border-radius: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, rgba(94, 106, 210, 0.3), rgba(94, 106, 210, 0.08));
-  border: 1px solid rgba(94, 106, 210, 0.32);
-  color: var(--foreground);
-  font-size: 1.3rem;
-  font-weight: 700;
+.persona-meta-bar-glyph {
+  width: 32px;
+  height: 32px;
+  font-size: 0.88rem;
+  border-radius: 10px;
 }
 
-.persona-hero-copy {
+.persona-meta-bar-info {
   min-width: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
-.persona-hero-title {
+.persona-meta-bar-name {
   color: var(--foreground);
-  font-size: 1.05rem;
+  font-size: 0.88rem;
   font-weight: 600;
 }
 
-.persona-hero-subtitle {
+.persona-meta-bar-workspace {
   color: var(--text-muted);
-  font-size: 0.8rem;
   font-family: var(--font-mono);
-  word-break: break-all;
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.persona-detail-actions {
+.persona-meta-bar-badges {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.persona-meta-bar-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.persona-meta-bar.open .persona-meta-bar-chevron {
+  transform: rotate(180deg);
+}
+
+.persona-meta-bar-detail {
+  display: none;
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--border-default);
+}
+
+.persona-meta-bar.open .persona-meta-bar-detail {
+  display: block;
+}
+
+.persona-meta-bar-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
-  padding-top: 4px;
+  padding-top: 12px;
+}
+
+.persona-delete-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.persona-delete-toggle input {
+  width: auto;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.persona-inline-actions-wrap {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.persona-create-modal-panel {
+  max-width: 520px;
+}
+
+.persona-create-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .persona-field-note {
@@ -1172,77 +1211,7 @@ body {
   color: var(--warning-text, #f5c46b);
 }
 
-.persona-memory-note {
-  background: linear-gradient(180deg, rgba(94, 106, 210, 0.08), rgba(255, 255, 255, 0.02));
-  border-color: rgba(94, 106, 210, 0.2);
-  color: var(--foreground);
-}
-
-.persona-memory-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
-
-.persona-memory-copy {
-  margin-top: 8px;
-}
-
-.persona-memory-paths {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.persona-memory-path {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  padding: 5px 9px;
-  border-radius: 999px;
-  border: 1px solid rgba(94, 106, 210, 0.2);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--foreground);
-  font-family: var(--font-mono);
-  font-size: 0.76rem;
-  word-break: break-all;
-}
-
-.persona-memory-empty {
-  margin-top: 10px;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
-
-.persona-delete-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
-.persona-delete-toggle input {
-  width: auto;
-  margin: 0;
-  accent-color: var(--accent);
-}
-
-.persona-inline-actions-wrap {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.persona-protected-note {
-  margin: 0;
-  color: var(--text-muted);
-}
-
 .persona-files-shell .empty-placeholder,
-.persona-detail-shell .empty-placeholder,
 .persona-agent-shell .empty-placeholder {
   padding: 56px 20px;
 }
@@ -3299,7 +3268,7 @@ button {
   }
 
   .persona-form-compact,
-  .persona-detail-body,
+  .persona-meta-bar-detail,
   .persona-file-content,
   .persona-panel-body-padding {
     padding: 18px;
@@ -3309,7 +3278,7 @@ button {
     padding: 14px 18px;
   }
 
-  .persona-detail-actions {
+  .persona-meta-bar-actions {
     flex-direction: column;
     align-items: stretch;
   }
@@ -5517,17 +5486,6 @@ body.confirm-modal-open {
   color: #DC2626 !important;
   border-color: rgba(220, 38, 38, 0.18) !important;
   box-shadow: inset 0 1px 0 rgba(220, 38, 38, 0.05), 0 2px 4px rgba(220, 38, 38, 0.05);
-}
-
-[data-theme="light"] .persona-memory-note {
-  background: linear-gradient(180deg, rgba(79, 70, 229, 0.08), rgba(255, 255, 255, 0.72));
-  border-color: rgba(79, 70, 229, 0.16);
-}
-
-[data-theme="light"] .persona-memory-path {
-  background: rgba(255, 255, 255, 0.92);
-  border-color: rgba(79, 70, 229, 0.14);
-  color: var(--foreground);
 }
 
 /* 亮色下横栏标题区与节点警告信息文字色彩纠正 */

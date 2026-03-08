@@ -3264,7 +3264,8 @@ function getPersonaDirtyDraftLabels({ ignore = [] } = {}) {
     labels.push("Agent 元数据");
   }
   if (!ignored.has("file") && isPersonaFileDirty()) {
-    labels.push("文件内容");
+    const fileName = toTrimmedString(state.persona.selectedFileName);
+    labels.push(fileName ? `文件「${fileName}」` : "文件内容");
   }
 
   return labels;
@@ -3353,7 +3354,7 @@ function renderPersonaAgentList() {
     container.innerHTML = renderEmpty(
       "fa-solid fa-user-slash",
       "暂无 Agent",
-      "先在左侧创建一个 Agent，再继续维护人格 / 提示词文件。"
+      "点击上方 + 按钮创建一个 Agent，再继续维护人格 / 提示词文件。"
     );
     return;
   }
@@ -3388,35 +3389,15 @@ function renderPersonaAgentList() {
     .join("");
 }
 
-function renderPersonaMetadataPanel() {
-  const container = $("persona-metadata-panel");
-  if (!container) return;
-
-  const headerBase = renderPersonaPanelHeader({
-    iconClass: "fa-solid fa-id-card",
-    title: "Agent 元数据",
-    subtitle: "维护当前 Agent 的名称、工作区与头像字段。"
-  });
-
-  if (state.persona.loading && state.persona.agents.length === 0) {
-    container.innerHTML = `${headerBase}<div class="persona-panel-body persona-panel-body-padding">${renderSkeleton(3)}</div>`;
-    return;
-  }
-
+function renderPersonaMetadataBar() {
   const agent = getSelectedPersonaAgent();
-  if (!agent) {
-    const subtitle = state.persona.listError
-      ? escapeHtml(state.persona.listError)
-      : "请先从左侧选择一个 Agent，或先创建新的 Agent。";
-    container.innerHTML = `${headerBase}${renderEmpty("fa-solid fa-user-astronaut", state.persona.listError ? "当前无法编辑 Agent" : "尚未选择 Agent", subtitle)}`;
-    return;
-  }
+  if (!agent) return "";
 
   const isMain = state.persona.mainKey && (state.persona.mainKey === agent.agentId || state.persona.mainKey === getPersonaEffectiveWorkspace(agent));
   const isDefaultAgent = agent.agentId === state.persona.defaultId;
   const badges = [];
   if (isDefaultAgent) {
-    badges.push('<span class="status-badge status-badge-tight accent">默认 Agent</span>');
+    badges.push('<span class="status-badge status-badge-tight accent">默认</span>');
   }
   if (isMain) {
     badges.push('<span class="status-badge status-badge-tight ok">主入口</span>');
@@ -3424,87 +3405,66 @@ function renderPersonaMetadataPanel() {
   if (agent.theme) {
     badges.push(`<span class="status-badge status-badge-tight dynamic">${escapeHtml(agent.theme)}</span>`);
   }
-  if (agent.avatarUrl) {
-    badges.push('<span class="status-badge status-badge-tight warn">含头像链接</span>');
-  }
 
   const effectiveWorkspace = getPersonaEffectiveWorkspace(agent);
   const workspaceSourceLabel = getPersonaWorkspaceSourceLabel(agent);
 
-  container.innerHTML = `
-    ${renderPersonaPanelHeader({
-      iconClass: "fa-solid fa-id-card",
-      title: "Agent 元数据",
-      subtitle: "改动会通过现有网关桥接立即写回当前 Agent 配置。",
-      actionsHtml: badges.join("")
-    })}
-    <div class="persona-panel-body persona-detail-body">
-      <div class="persona-hero">
-        <div class="persona-hero-avatar">${escapeHtml(getPersonaAgentGlyph(agent))}</div>
-        <div class="persona-hero-copy">
-          <div class="persona-hero-title">${escapeHtml(getPersonaDisplayName(agent))}</div>
-          <div class="persona-hero-subtitle">${escapeHtml(agent.agentId)}</div>
-        </div>
+  return `
+    <div class="persona-meta-bar" id="persona-meta-bar">
+      <div class="persona-meta-bar-summary" data-persona-meta-toggle>
+        <span class="persona-agent-bubble persona-meta-bar-glyph">${escapeHtml(getPersonaAgentGlyph(agent))}</span>
+        <span class="persona-meta-bar-info">
+          <span class="persona-meta-bar-name">${escapeHtml(getPersonaDisplayName(agent))}</span>
+          <span class="persona-meta-bar-workspace">${escapeHtml(effectiveWorkspace)}</span>
+        </span>
+        <span class="persona-meta-bar-badges">${badges.join("")}</span>
+        <i class="fa-solid fa-chevron-down persona-meta-bar-chevron"></i>
       </div>
-
-      <form id="persona-metadata-form" class="persona-form">
-        <div class="persona-form-grid">
-          <div class="config-row">
-            <label for="persona-agent-name">显示名称</label>
-            <input id="persona-agent-name" type="text" placeholder="例如：阿洛娜主控" />
+      <div class="persona-meta-bar-detail">
+        <form id="persona-metadata-form" class="persona-form">
+          <div class="persona-form-grid">
+            <div class="config-row">
+              <label for="persona-agent-name">显示名称</label>
+              <input id="persona-agent-name" type="text" placeholder="例如：阿洛娜主控" />
+            </div>
+            <div class="config-row">
+              <label for="persona-agent-workspace">工作区</label>
+              <input id="persona-agent-workspace" type="text" class="form-control-mono" placeholder="例如：agents/arona-main" ${isDefaultAgent ? 'readonly aria-readonly="true"' : ''} />
+              <p class="persona-field-note">
+                当前生效：<code class="persona-field-note-code">${escapeHtml(effectiveWorkspace)}</code>
+                <span class="persona-field-note-source">${escapeHtml(workspaceSourceLabel)}</span>
+                ${isDefaultAgent ? '<span class="persona-field-note-warning">默认 Agent 工作区受保护，如需修改请与 🦞 沟通。</span>' : ''}
+              </p>
+            </div>
+            <div class="config-row persona-field-full">
+              <label for="persona-agent-avatar">头像字段</label>
+              <input id="persona-agent-avatar" type="text" placeholder="可选：填写头像标识或短文本" />
+            </div>
           </div>
-          <div class="config-row">
-            <label for="persona-agent-workspace">工作区</label>
-            <input id="persona-agent-workspace" type="text" class="form-control-mono" placeholder="例如：agents/arona-main" ${isDefaultAgent ? 'readonly aria-readonly="true"' : ''} />
-            <p class="persona-field-note">
-              当前生效：<code class="persona-field-note-code">${escapeHtml(effectiveWorkspace)}</code>
-              <span class="persona-field-note-source">${escapeHtml(workspaceSourceLabel)}</span>
-              ${isDefaultAgent ? '<span class="persona-field-note-warning">默认 Agent 工作区受保护，如需修改请与 🦞 沟通。</span>' : ''}
-            </p>
-          </div>
-          <div class="config-row persona-field-full">
-            <label for="persona-agent-avatar">头像字段</label>
-            <input id="persona-agent-avatar" type="text" placeholder="可选：填写头像标识或短文本" />
-          </div>
-        </div>
 
-        <p class="persona-inline-hint">
-          ${escapeHtml(effectiveWorkspace)} 中的人格 / 提示词正文请在下方文件编辑区维护；其中 <code>MEMORY.md</code> 就是长期记忆文件。
-        </p>
-
-        ${renderPersonaMemorySearchNote(agent)}
-
-        <div class="persona-detail-actions">
-          ${isDefaultAgent ? '<p class="persona-inline-hint persona-protected-note">默认 Agent 受保护：允许修改，但不提供删除操作。</p>' : `
-            <label class="persona-delete-toggle" for="persona-delete-files">
-              <input id="persona-delete-files" type="checkbox" />
-              <span>删除 Agent 时同时清理文件</span>
-            </label>
-          `}
-
-          <div class="form-inline-actions persona-inline-actions-wrap">
-            <button id="persona-agent-reset-btn" type="button" class="panel-action-btn btn-secondary btn-ghost" data-persona-agent-reset>恢复原值</button>
+          <div class="persona-meta-bar-actions">
             ${isDefaultAgent ? '' : `
-              <button id="persona-agent-delete-btn" type="button" class="panel-action-btn btn-secondary btn-danger" data-persona-agent-delete>
-                <i class="fa-regular fa-trash-can"></i> 删除 Agent
-              </button>
+              <label class="persona-delete-toggle" for="persona-delete-files">
+                <input id="persona-delete-files" type="checkbox" />
+                <span>删除时同时清理文件</span>
+              </label>
             `}
-            <button id="persona-agent-save-btn" type="submit" class="btn-primary btn-primary-strong">
-              <i class="fa-solid fa-floppy-disk"></i> 保存元数据
-            </button>
+            <div class="form-inline-actions persona-inline-actions-wrap">
+              <button id="persona-agent-reset-btn" type="button" class="panel-action-btn btn-secondary btn-ghost" data-persona-agent-reset>恢复原值</button>
+              ${isDefaultAgent ? '' : `
+                <button id="persona-agent-delete-btn" type="button" class="panel-action-btn btn-secondary btn-danger" data-persona-agent-delete>
+                  <i class="fa-regular fa-trash-can"></i> 删除
+                </button>
+              `}
+              <button id="persona-agent-save-btn" type="submit" class="btn-primary btn-primary-strong">
+                <i class="fa-solid fa-floppy-disk"></i> 保存元数据
+              </button>
+            </div>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   `;
-
-  const nameInput = $("persona-agent-name");
-  const workspaceInput = $("persona-agent-workspace");
-  const avatarInput = $("persona-agent-avatar");
-  if (nameInput) nameInput.value = agent.displayName;
-  if (workspaceInput) workspaceInput.value = getPersonaEffectiveWorkspace(agent);
-  if (avatarInput) avatarInput.value = agent.avatar || "";
-  syncPersonaMetadataActionState();
 }
 
 function resetPersonaMetadataDraft() {
@@ -3633,7 +3593,18 @@ function renderPersonaFilesPanel() {
     `;
   }
 
-  container.innerHTML = `${headerHtml}<div class="persona-file-tabs" role="tablist" aria-label="Persona 文件列表">${tabsHtml}</div>${bodyHtml}`;
+  container.innerHTML = `${headerHtml}${renderPersonaMetadataBar()}<div class="persona-file-tabs" role="tablist" aria-label="Persona 文件列表">${tabsHtml}</div>${bodyHtml}`;
+
+  const agent2 = getSelectedPersonaAgent();
+  if (agent2) {
+    const nameInput = $("persona-agent-name");
+    const workspaceInput = $("persona-agent-workspace");
+    const avatarInput = $("persona-agent-avatar");
+    if (nameInput) nameInput.value = agent2.displayName;
+    if (workspaceInput) workspaceInput.value = getPersonaEffectiveWorkspace(agent2);
+    if (avatarInput) avatarInput.value = agent2.avatar || "";
+    syncPersonaMetadataActionState();
+  }
 
   const editor = $("persona-file-editor");
   if (editor) {
@@ -3701,7 +3672,6 @@ async function loadPersona({ preferredAgentId = "", preferredWorkspace = "", pre
   updatePersonaSummaryPills();
   syncPersonaRefreshButtonState();
   renderPersonaAgentList();
-  renderPersonaMetadataPanel();
   renderPersonaFilesPanel();
 
   try {
@@ -3726,7 +3696,6 @@ async function loadPersona({ preferredAgentId = "", preferredWorkspace = "", pre
     updatePersonaSummaryPills();
     syncPersonaRefreshButtonState();
     renderPersonaAgentList();
-    renderPersonaMetadataPanel();
     renderPersonaFilesPanel();
 
     if (state.persona.selectedAgentId) {
@@ -3745,7 +3714,6 @@ async function loadPersona({ preferredAgentId = "", preferredWorkspace = "", pre
     updatePersonaSummaryPills();
     syncPersonaRefreshButtonState();
     renderPersonaAgentList();
-    renderPersonaMetadataPanel();
     renderPersonaFilesPanel();
   }
 }
@@ -3761,7 +3729,6 @@ async function selectPersonaAgent(agentId) {
   state.persona.selectedAgentId = nextId;
   resetPersonaFileState();
   renderPersonaAgentList();
-  renderPersonaMetadataPanel();
   renderPersonaFilesPanel();
   await loadPersonaFiles(nextId, { preferredFileName });
 }
@@ -3875,8 +3842,29 @@ async function loadPersonaFile(agentId, fileName) {
   }
 }
 
-async function createPersonaAgent() {
+function setPersonaCreateModalOpen(open) {
+  const modal = $("persona-create-modal");
+  if (!modal) return;
+  modal.classList.toggle("open", open);
+  modal.setAttribute("aria-hidden", open ? "false" : "true");
+  if (open) {
+    captureModalFocus("persona-create-modal", { initialSelector: "#persona-create-name" });
+  } else {
+    releaseModalFocus("persona-create-modal");
+  }
+}
+
+function openPersonaCreateModal() {
   const form = $("persona-create-form");
+  if (form) form.reset();
+  setPersonaCreateModalOpen(true);
+}
+
+function closePersonaCreateModal() {
+  setPersonaCreateModalOpen(false);
+}
+
+async function createPersonaAgent() {
   const submitBtn = $("persona-create-submit");
   const name = toTrimmedString($("persona-create-name")?.value);
   const workspace = toTrimmedString($("persona-create-workspace")?.value);
@@ -3912,7 +3900,7 @@ async function createPersonaAgent() {
     const createdAgentId = toTrimmedString(result?.data?.agentId || result?.agentId || "");
 
     showToast(`Agent ${name} 已创建`, "success");
-    form?.reset();
+    closePersonaCreateModal();
     await loadPersona({
       preferredAgentId: createdAgentId,
       preferredWorkspace: workspace,
@@ -5855,9 +5843,23 @@ function bindEvents() {
     });
   });
 
+  $("persona-create-trigger")?.addEventListener("click", () => {
+    openPersonaCreateModal();
+  });
+
   $("persona-create-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     await createPersonaAgent();
+  });
+
+  $("persona-create-submit")?.addEventListener("click", async () => {
+    await createPersonaAgent();
+  });
+
+  const personaCreateModal = $("persona-create-modal");
+  personaCreateModal?.addEventListener("click", (event) => {
+    if (!event.target.closest("[data-persona-create-modal-close]")) return;
+    closePersonaCreateModal();
   });
 
   $("persona-agent-list")?.addEventListener("click", async (event) => {
@@ -5867,29 +5869,28 @@ function bindEvents() {
     await selectPersonaAgent(agentId);
   });
 
-  $("persona-metadata-panel")?.addEventListener("submit", async (event) => {
+  $("persona-files-panel")?.addEventListener("submit", async (event) => {
     if (!event.target.closest("#persona-metadata-form")) return;
     event.preventDefault();
     await saveSelectedPersonaAgent();
   });
 
-  $("persona-metadata-panel")?.addEventListener("click", async (event) => {
+  $("persona-files-panel")?.addEventListener("click", async (event) => {
+    if (event.target.closest("[data-persona-meta-toggle]")) {
+      const bar = $("persona-meta-bar");
+      if (bar) bar.classList.toggle("open");
+      return;
+    }
+
     if (event.target.closest("[data-persona-agent-reset]")) {
       resetPersonaMetadataDraft();
       return;
     }
     if (event.target.closest("[data-persona-agent-delete]")) {
       await deleteSelectedPersonaAgent();
+      return;
     }
-  });
 
-  $("persona-metadata-panel")?.addEventListener("input", (event) => {
-    if (["persona-agent-name", "persona-agent-workspace", "persona-agent-avatar"].includes(event.target.id)) {
-      syncPersonaMetadataActionState();
-    }
-  });
-
-  $("persona-files-panel")?.addEventListener("click", async (event) => {
     const tab = event.target.closest("[data-persona-file-tab]");
     if (tab) {
       const fileName = tab.getAttribute("data-persona-file-tab") || "";
@@ -5922,9 +5923,14 @@ function bindEvents() {
   });
 
   $("persona-files-panel")?.addEventListener("input", (event) => {
-    if (event.target.id !== "persona-file-editor") return;
-    state.persona.fileContent = event.target.value;
-    syncPersonaFileEditorState();
+    if (event.target.id === "persona-file-editor") {
+      state.persona.fileContent = event.target.value;
+      syncPersonaFileEditorState();
+      return;
+    }
+    if (["persona-agent-name", "persona-agent-workspace", "persona-agent-avatar"].includes(event.target.id)) {
+      syncPersonaMetadataActionState();
+    }
   });
 
   const providerMatrix = $("models-provider-matrix");

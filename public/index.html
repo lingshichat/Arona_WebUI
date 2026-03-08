@@ -494,50 +494,16 @@
 
         <div class="persona-layout">
           <aside class="persona-sidebar">
-            <section class="glass-panel persona-create-panel" data-spotlight>
-              <div class="panel-header persona-panel-header">
-                <div>
-                  <div class="panel-title panel-title-foreground"><i class="fa-solid fa-plus panel-title-icon panel-title-icon-accent"></i>新建 Agent</div>
-                  <p class="persona-panel-caption">为不同人格设定创建独立工作区与提示词资产。</p>
-                </div>
-              </div>
-
-              <form id="persona-create-form" class="persona-form persona-form-compact">
-                <div class="persona-form-grid persona-form-grid-single">
-                  <div class="config-row">
-                    <label for="persona-create-name">Agent 名称</label>
-                    <input id="persona-create-name" type="text" placeholder="例如：阿洛娜主控" />
-                  </div>
-                  <div class="config-row">
-                    <label for="persona-create-workspace">工作区</label>
-                    <input id="persona-create-workspace" type="text" class="form-control-mono" placeholder="例如：agents/arona-main" />
-                  </div>
-                  <div class="config-row">
-                    <label for="persona-create-emoji">Emoji（可选）</label>
-                    <input id="persona-create-emoji" type="text" placeholder="例如：🧭" />
-                  </div>
-                  <div class="config-row">
-                    <label for="persona-create-avatar">头像字段（可选）</label>
-                    <input id="persona-create-avatar" type="text" placeholder="填写头像标识或短文本" />
-                  </div>
-                </div>
-
-                <p class="persona-inline-hint persona-create-hint">建议为不同角色使用清晰的 workspace 命名，便于后续管理提示词文件。</p>
-
-                <div class="form-inline-actions persona-create-actions">
-                  <button type="reset" class="panel-action-btn btn-secondary btn-ghost">清空</button>
-                  <button type="submit" id="persona-create-submit" class="btn-primary btn-primary-strong">
-                    <i class="fa-solid fa-plus"></i> 创建 Agent
-                  </button>
-                </div>
-              </form>
-            </section>
-
             <section class="glass-panel persona-agent-shell" data-spotlight>
               <div class="panel-header persona-panel-header">
                 <div>
                   <div class="panel-title panel-title-foreground"><i class="fa-solid fa-user-group panel-title-icon panel-title-icon-accent"></i>Agent 列表</div>
-                  <p class="persona-panel-caption">选中 Agent 后即可查看 Persona 文件并编辑基础元数据。</p>
+                  <p class="persona-panel-caption">选中 Agent 后即可查看 Persona 文件并编辑元数据。</p>
+                </div>
+                <div class="panel-inline-list persona-panel-actions">
+                  <button type="button" id="persona-create-trigger" class="panel-action-btn btn-secondary" title="新建 Agent">
+                    <i class="fa-solid fa-plus"></i>
+                  </button>
                 </div>
               </div>
               <div id="persona-agent-list" class="persona-agent-list panel-body-scroll" aria-label="Agent 列表"></div>
@@ -545,9 +511,50 @@
           </aside>
 
           <div class="persona-main-stack">
-            <section id="persona-metadata-panel" class="glass-panel persona-detail-shell" data-spotlight></section>
             <section id="persona-files-panel" class="glass-panel persona-files-shell" data-spotlight></section>
           </div>
+        </div>
+
+        <div id="persona-create-modal" class="provider-modal-shell" aria-hidden="true">
+          <div class="provider-modal-backdrop" data-persona-create-modal-close></div>
+          <section class="provider-modal-panel persona-create-modal-panel" role="dialog" aria-modal="true" aria-labelledby="persona-create-modal-title">
+            <div class="provider-modal-head">
+              <div>
+                <h3 id="persona-create-modal-title" class="provider-modal-title">新建 Agent</h3>
+                <p class="provider-modal-subtitle">为不同人格设定创建独立工作区与提示词资产。</p>
+              </div>
+              <button type="button" class="provider-modal-close" data-persona-create-modal-close aria-label="关闭">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <form id="persona-create-form" class="provider-modal-body persona-create-modal-body">
+              <div class="persona-form-grid persona-form-grid-single">
+                <div class="config-row">
+                  <label for="persona-create-name">Agent 名称</label>
+                  <input id="persona-create-name" type="text" placeholder="例如：阿洛娜主控" />
+                </div>
+                <div class="config-row">
+                  <label for="persona-create-workspace">工作区</label>
+                  <input id="persona-create-workspace" type="text" class="form-control-mono" placeholder="例如：agents/arona-main" />
+                </div>
+                <div class="config-row">
+                  <label for="persona-create-emoji">Emoji（可选）</label>
+                  <input id="persona-create-emoji" type="text" placeholder="例如：🧭" />
+                </div>
+                <div class="config-row">
+                  <label for="persona-create-avatar">头像字段（可选）</label>
+                  <input id="persona-create-avatar" type="text" placeholder="填写头像标识或短文本" />
+                </div>
+              </div>
+              <p class="persona-inline-hint">建议为不同角色使用清晰的 workspace 命名，便于后续管理提示词文件。</p>
+            </form>
+            <div class="provider-modal-foot">
+              <button type="button" class="panel-action-btn btn-secondary btn-ghost" data-persona-create-modal-close>取消</button>
+              <button type="button" id="persona-create-submit" class="btn-primary btn-primary-strong">
+                <i class="fa-solid fa-plus"></i> 创建 Agent
+              </button>
+            </div>
+          </section>
         </div>
       </section>
 
