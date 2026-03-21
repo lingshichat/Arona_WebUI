@@ -70,6 +70,16 @@ function stopOverviewTimers() {
 - 设置 `aria-hidden` 属性
 - 支持 Escape 键关闭
 
+### 6. 表单质量要求
+
+- 每个输入控件都需要可见 label；placeholder 不能代替 label
+- 错误信息应尽量贴近对应字段，并在需要时用 `aria-live` / `role="alert"` 让读屏可感知
+- 不要只靠颜色表达状态或错误
+- 技术输入不要阻止 paste
+- 技术输入应根据场景设置合适的 `type`、`autocomplete`、`spellcheck`
+  - 例如 URL 用 `type="text"` 或 `type="url"` 时要确保可读
+  - 代码 / 模型 ID / provider key 可考虑 `spellcheck="false"`
+
 ---
 
 ## Testing Requirements
@@ -90,4 +100,7 @@ function stopOverviewTimers() {
 - [ ] UI 文本是否使用中文？
 - [ ] CSS 是否使用已有的自定义属性（`--accent`、`--surface` 等）而非硬编码颜色？
 - [ ] 新增元素是否遵循 `.glass-panel` / `.stat-card` 等已有设计模式？
+- [ ] 表单是否有可见 label，而不是只靠 placeholder？
+- [ ] 状态和错误是否不是只靠颜色表达？
+- [ ] checkbox / radio / icon-only 按钮是否有清晰可访问名称？
 - [ ] 是否尊重 `prefers-reduced-motion` 设置？

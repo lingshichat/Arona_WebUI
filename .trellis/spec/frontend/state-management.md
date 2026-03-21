@@ -21,7 +21,10 @@ const state = {
   currentView: "overview",        // 当前激活的导航视图
   modelsHash: "",                 // 模型配置的哈希（用于脏检测）
   modelProvidersDraft: {},        // 模型提供商编辑草稿
+  agentsDefaultsModelsDraft: {},  // Agent 默认模型 allowlist 草稿
+  agentsDefaultModelDraft: null,  // Agent 默认主模型草稿
   deletedModelProviderKeys: new Set(), // 待作为 tombstone 下发的 Provider 删除集合
+  deletedAllowlistModelRefs: new Set(), // 待作为 tombstone 下发的 allowlist 模型引用集合
   modelsApply: { ... },           // 模型配置保存/热重启恢复状态
   providerModalOpen: false,       // Provider 编辑弹窗是否打开
   skillModalOpen: false,          // Skill 配置弹窗是否打开
@@ -73,6 +76,9 @@ let _skillsCache = [];  // 技能数据缓存，供配置弹窗读取
 ### 6. 模型配置热重启子状态
 
 - `deletedModelProviderKeys`：记录用户删除或重命名后需要在 `config.patch` 中发送 `null` tombstone 的 provider key。
+- `agentsDefaultsModelsDraft`：当前模型页里“Agent 可用” allowlist 的前端草稿。
+- `agentsDefaultModelDraft`：当前模型页里“设为默认”对应的默认模型草稿。
+- `deletedAllowlistModelRefs`：记录取消勾选或删除后需要在 `config.patch` 中发送 `null` tombstone 的模型引用。
 - `modelsApply.phase`：`"idle" | "restarting" | "error"`，驱动“网关热重启中”状态徽标和按钮禁用 / 重试连接状态。
 - `modelsApply.message`：当前热重启提示文案；在轮询恢复期间动态更新。
 

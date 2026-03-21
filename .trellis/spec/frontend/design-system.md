@@ -15,6 +15,22 @@ Core principles already landed in code:
 - motion durations centralized in tokens
 - spotlight / ambient effects must degrade cleanly under `prefers-reduced-motion`
 - shared button / badge / panel classes should be reused before adding new component-specific styling
+- admin / control surfaces are **data-dense first**: clarity, trust, and readable form structure beat decorative flourish
+
+### Product Fit: Admin / Gateway Console
+
+For this project, external design research best matches a dark enterprise control surface:
+
+- “enterprise gateway” / admin dashboard visual language
+- conservative accent usage
+- high-contrast dark mode
+- technical typography for ids / model refs / machine-readable strings
+
+This means new UI should feel like an operator console, not a marketing page:
+
+- prefer calm, conservative surfaces over playful highlight colors
+- reserve semantic colors for explicit status signals, not ordinary content labels
+- treat forms and control panels as operational UI, not decorative cards
 
 ---
 
@@ -72,6 +88,14 @@ Use shared button classes for interaction states. Only add local styles for spac
 - `.status-badge` and its tone variants are the default status capsule.
 - Use semantic tones (`ok`, `warn`, `bad`, `accent`, `dynamic`) consistently across views.
 - **Warning**: light theme keeps a broad base `.status-badge` restyle. Existing tones used by the app have dedicated overrides, but any newly introduced badge tone must add its own light-theme override instead of assuming the base badge style will preserve meaning.
+- For admin/data chips (model ids, provider names, route labels), default to the neutral chip language first.
+- Do **not** recolor normal text/chips to green/yellow/red just because the underlying item is “available”, “default”, or “selected”.
+- If a state matters, expose it through:
+  - a nearby `.status-badge`
+  - helper copy
+  - explicit label text / icon
+  - layout grouping
+  rather than colorizing the content token itself.
 
 ### Spotlight-enabled cards
 - Add `data-spotlight` to interactive elevated surfaces that should receive pointer-driven light.
@@ -80,6 +104,12 @@ Use shared button classes for interaction states. Only add local styles for spac
 ### Form / modal system
 - Reuse the existing modal shell, field spacing, and focus behaviors.
 - Inputs should inherit token-based backgrounds/borders and rely on the global `:focus-visible` outline instead of custom ad-hoc rings.
+- In form-heavy admin modals, use **visible field labels** and helper text before inventing new control metaphors.
+- One-off custom switches / glowing pills / chip-toggles should be avoided unless there is already a shared primitive in the repo.
+- For policy-like choices (“enabled”, “default”, “allow”), prefer native checkbox / radio inputs with clear labels unless a shared existing control family is already established.
+- Dense forms should be structured in two layers:
+  - field rows for raw values
+  - a separate options / policy row for toggles and secondary choices
 
 ---
 
@@ -110,6 +140,7 @@ When adding a new animation, wire it through the shared motion tokens or the sam
 ### Focus and keyboard
 - Rely on the global `:focus-visible` outline (`public/styles.css:96-106`) unless a component has a stronger documented reason.
 - Modal and drawer interactions must keep keyboard flow intact; visual polish must not break Tab / Escape behavior.
+- Inputs, radios, and checkboxes in admin forms should remain obviously interactive in both themes without requiring hover to reveal affordance.
 
 ### Theme switching
 - Dark mode is the baseline in `:root`.
@@ -119,6 +150,15 @@ When adding a new animation, wire it through the shared motion tokens or the sam
 ### Color independence
 - Accent color is emphasis, not the only source of meaning.
 - Pair state colors with iconography, label text, or placement when the state matters.
+- If a user cannot distinguish green from neutral, or if the UI is viewed in grayscale, critical state should still be understandable.
+
+### Admin Form Rules
+
+- Placeholder text is an example, not the primary label.
+- Technical inputs (model ids, provider keys, API endpoints, aliases) should keep labels visible at all times.
+- Required-ness should be explicit when applicable.
+- Submission feedback must have a visible loading / success / error state.
+- Inline validation and field-local errors are preferred over a single generic error area at the top.
 
 ---
 
@@ -175,6 +215,8 @@ When adding a new animation, wire it through the shared motion tokens or the sam
 
 - [ ] 是否优先复用现有 token，而不是硬编码颜色 / 阴影 / easing？
 - [ ] 是否优先复用 `.glass-panel` / `.btn-*` / `.status-badge` 等共享类族？
+- [ ] 是否把“后台控制台的值展示”和“状态表达”分开了，而不是给普通内容直接染语义色？
+- [ ] 表单是否优先使用可见 label + 原生 checkbox/radio，而不是一次性私造控件？
 - [ ] 新动效是否接入了共享 motion token？
 - [ ] `prefers-reduced-motion` 下是否仍然可用？
 - [ ] light / dark 主题下都是否可读？

@@ -81,6 +81,40 @@ function requestConfirmDialog({ title, message, confirmText, cancelText, variant
 
 ---
 
+## Form-Heavy Admin UI Pattern
+
+模型管理、节点控制、技能配置这类后台页面属于 **data-dense admin UI**，应遵循下面的构建模式：
+
+### 1. Visible labels first
+
+- 输入框必须有可见 label 或 field title
+- placeholder 只能作为示例，不能承担标签职责
+- 技术字段（model id、provider key、base URL、路径、别名）尤其不能只靠 placeholder
+
+### 2. Split values from policies
+
+- 原始值输入（字符串、数字、URL）和策略选项（allow/default/enabled）不要混在同一视觉语言里
+- 推荐结构：
+  - 上层：字段输入
+  - 下层：checkbox / radio 等策略项
+- 不要为了“更酷”把 checkbox / radio 包装成一次性自定义发光 pill，除非仓库里已有共享控件可以复用
+
+### 3. State expression should be explicit
+
+- 普通内容标签（如模型名、provider 名）默认保持中性
+- 状态要通过文案、icon、badge、helper text 来表达
+- 不要把“可用 / 默认 / 选中”直接变成内容本身的语义色文本
+
+### 4. Inline helper copy
+
+- 当一个控件会影响配置写入行为时，必须在附近提供简短说明
+- 例如：
+  - “勾选后会写入 allowlist”
+  - “保存后会更新默认模型”
+- 这类说明比把控件做成复杂视觉形态更重要
+
+---
+
 ## 样式约定
 
 - **CSS 自定义属性体系**：所有颜色、阴影、动效时长等通过 `:root` 变量定义（`public/styles.css`）
@@ -99,6 +133,7 @@ function requestConfirmDialog({ title, message, confirmText, cancelText, variant
 - **`aria-hidden`**：弹窗开关时同步设置
 - **`prefers-reduced-motion`**：检测并禁用 spotlight 动画（约第 79 行）
 - **键盘导航**：Enter 键提交表单、Escape 键关闭弹窗
+- **表单控件可访问名**：checkbox / radio / icon-only 按钮必须有明确 label 或 `aria-label`
 
 ---
 
