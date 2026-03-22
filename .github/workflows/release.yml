@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - run: npm ci --production
+
+      - name: Package release archives
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          STAGING="arona-webui-${VERSION}"
+
+          mkdir "$STAGING"
+          cp -r src public node_modules "$STAGING/"
+          cp package.json start.bat start.sh .env.example README.md LICENSE "$STAGING/" 2>/dev/null || true
+          cp -r scripts "$STAGING/" 2>/dev/null || true
+          chmod +x "$STAGING/start.sh" "$STAGING/scripts/install.sh" 2>/dev/null || true
+
+          zip -r "arona-webui-${VERSION}.zip" "$STAGING"
+          tar czf "arona-webui-${VERSION}.tar.gz" "$STAGING"
+
+          # Fixed-name aliases so README curl commands always work
+          cp "arona-webui-${VERSION}.zip" "arona-webui-latest.zip"
+          cp "arona-webui-${VERSION}.tar.gz" "arona-webui-latest.tar.gz"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            ## Quick Start / 快速开始
+
+            **Windows**: Download `.zip` → Extract → Double-click `start.bat`
+
+            **macOS / Linux**:
+            ```bash
+            curl -fsSL https://github.com/lingshichat/Arona_WebUI/releases/latest/download/arona-webui-latest.tar.gz | tar xz
+            cd arona-webui-*/
+            ./start.sh
+            ```
+
+            **Docker**:
+            ```bash
+            GATEWAY_URL=ws://your-gateway:18789 GATEWAY_PASSWORD=xxx docker compose up -d
+            ```
+
+            首次启动浏览器会自动打开配置向导，按提示填入网关地址和密码即可。
+
+            详见 [README](https://github.com/lingshichat/Arona_WebUI#readme)。
+          files: |
+            arona-webui-*.zip
+            arona-webui-*.tar.gz

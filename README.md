@@ -50,25 +50,145 @@ Monitor, configure, and interact with your OpenClaw instance from the browser.
 
 ## Quick Start / 快速开始
 
-```bash
-git clone https://github.com/nicepkg/arona-webui.git
-cd arona-webui
-npm install
-```
+### Windows
 
-Create `.env.local` with your gateway connection info / 创建 `.env.local` 填写网关连接信息：
+1. Install [Node.js](https://nodejs.org/) 18+ (if not already) / 安装 [Node.js](https://nodejs.org/) 18+
+2. Download `arona-webui-latest.zip` from [Latest Release](https://github.com/lingshichat/Arona_WebUI/releases/latest) / 从 [最新发行版](https://github.com/lingshichat/Arona_WebUI/releases/latest) 下载 `.zip`
+3. Extract the zip / 解压
+4. Double-click **`start.bat`** / 双击 **`start.bat`**（首次会自动安装依赖）
+5. Browser opens automatically → Setup Wizard / 浏览器自动打开 → 配置向导
 
-```env
-GATEWAY_URL=ws://127.0.0.1:18789
-GATEWAY_PASSWORD=your-gateway-password
-```
-
-Start the server / 启动服务：
+### macOS / Linux
 
 ```bash
-npm start
-# Open / 打开 http://localhost:18790
+# 1. Install Node.js 18+ (if not already)
+#    macOS: brew install node
+#    Ubuntu: sudo apt install -y nodejs
+
+# 2. Download & extract latest release / 下载解压最新发行包
+curl -fsSL https://github.com/lingshichat/Arona_WebUI/releases/latest/download/arona-webui-latest.tar.gz \
+  | tar xz
+cd arona-webui-*/
+
+# 3. Start (auto-installs dependencies on first run) / 启动（首次自动安装依赖）
+./start.sh
 ```
+
+### First-run Setup / 首次配置
+
+On first launch, the browser will open the **Setup Wizard** automatically:
+
+首次启动时，浏览器会自动打开**配置向导**：
+
+1. **Fill in your gateway info / 填写网关信息** — Gateway URL (`ws://127.0.0.1:18789`), password or token, username
+2. **Test connection / 测试连接** — Click "测试连接" to verify
+3. **Save & restart / 保存重启** — WebUI restarts and connects to your gateway
+4. **(Optional) Patch gateway / 配置网关** — Set `allowedOrigins` and `dangerouslyDisableDeviceAuth` on your gateway
+
+> You can also skip the wizard and configure manually: `cp .env.example .env.local` then edit.
+>
+> 也可以跳过向导手动配置：`cp .env.example .env.local` 然后编辑。
+
+### Gateway-side preparation / 网关侧准备
+
+If your gateway uses **non-loopback** access (e.g. LAN or Docker), you may need to configure it:
+
+如果网关不是 loopback 访问（如局域网或 Docker），可能需要在网关侧配置：
+
+```json5
+// ~/.openclaw/openclaw.json
+{
+  gateway: {
+    controlUi: {
+      allowedOrigins: ["http://localhost:18790"],
+      dangerouslyDisableDeviceAuth: true  // required for Arona WebUI
+    }
+  }
+}
+```
+
+Or use `openclaw config set` / 或通过命令设置：
+
+```bash
+openclaw config set gateway.controlUi.allowedOrigins '["http://localhost:18790"]'
+openclaw config set gateway.controlUi.dangerouslyDisableDeviceAuth true
+```
+
+> The Setup Wizard (Step 3) can also apply these settings automatically via WebSocket.
+>
+> 配置向导第 3 步也可以通过 WebSocket 自动应用这些设置。
+
+> Default port is `18790`. To change it, edit `PORT=<your-port>` in `.env.local`.
+>
+> 默认端口 `18790`。如需修改，在 `.env.local` 中设置 `PORT=<端口号>`。
+
+---
+
+## Other Install Methods / 其他安装方式
+
+<details>
+<summary><b>One-line Install Script / 一键安装脚本</b></summary>
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/lingshichat/Arona_WebUI/main/scripts/install.sh)
+```
+
+Downloads the latest release, extracts it, and walks you through configuring `.env.local` interactively.
+
+下载最新发行包、解压、交互式配置 `.env.local`。
+
+</details>
+
+<details>
+<summary><b>Docker</b></summary>
+
+```bash
+git clone https://github.com/lingshichat/Arona_WebUI.git
+cd Arona_WebUI
+docker compose up -d
+# Open http://localhost:18790 → Setup Wizard
+```
+
+Gateway on another machine / 网关在其他机器上：
+
+```bash
+GATEWAY_URL=ws://192.168.1.100:18789 GATEWAY_PASSWORD=xxx docker compose up -d
+```
+
+> **Linux host gateway / Linux 宿主机网关**: Uncomment `extra_hosts` in `docker-compose.yml`, or use `network_mode: host`.
+>
+> **Linux 宿主机网关**: 取消 `docker-compose.yml` 中 `extra_hosts` 的注释，或使用 `network_mode: host`。
+
+</details>
+
+<details>
+<summary><b>Manual / 手动安装（开发者）</b></summary>
+
+```bash
+git clone https://github.com/lingshichat/Arona_WebUI.git
+cd Arona_WebUI
+./start.sh        # auto-installs deps + starts server / 自动安装依赖并启动
+# Or: npm install && npm start
+# Open http://localhost:18790 → Setup Wizard
+```
+
+</details>
+
+## Setup Wizard / 配置向导
+
+On first launch, the browser auto-redirects to the Setup Wizard. You can also open it manually:
+
+首次启动时浏览器会自动跳转到配置向导，也可以手动访问：
+
+```
+http://localhost:18790/setup.html
+```
+
+The wizard guides you through: WebUI config → connection check → gateway config.
+
+向导流程：WebUI 配置 → 连接检测 → 网关配置（bind / allowedOrigins / disableDeviceAuth）。
+
+> Setup APIs are localhost-only (403 from remote). / Setup API 仅限本机访问。
 
 ## Configuration / 配置项
 
