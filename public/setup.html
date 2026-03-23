@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>初始配置 | Arona WebUI</title>
+  <link rel="stylesheet" href="/assets/fontawesome/css/all.min.css">
+  <style>
+    :root {
+      --primary-color: #3b70fc;
+      --glass-bg: rgba(20, 30, 60, 0.55);
+      --glass-border: rgba(255, 255, 255, 0.15);
+      --text-primary: #ffffff;
+      --text-muted: rgba(255, 255, 255, 0.6);
+      --bg-image: url('/assets/bg.jpg');
+      --success: #10b981;
+      --danger: #ef4444;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0; padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: var(--text-primary);
+      background: var(--bg-image) no-repeat center center fixed;
+      background-size: cover;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 10, 30, 0.65);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      z-index: 0;
+    }
+
+    .setup-container {
+      position: relative;
+      z-index: 1;
+      background: rgba(15, 25, 45, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      padding: 36px 44px;
+      width: 100%;
+      max-width: 580px;
+      box-shadow: 0 15px 45px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      animation: floatIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    @keyframes floatIn {
+      from { opacity: 0; transform: translateY(30px) scale(0.96); filter: blur(8px); }
+      to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+    }
+
+    .setup-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .setup-header .brand-icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 3px solid rgba(255, 255, 255, 0.9);
+      margin-bottom: 14px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, rgba(59, 112, 252, 0.3), rgba(102, 126, 234, 0.3));
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .setup-header .brand-icon i {
+      font-size: 28px;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .setup-header h2 {
+      margin: 0 0 4px;
+      font-weight: 600;
+      font-size: 22px;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, #fff 0%, #b3c5ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .setup-header p {
+      margin: 0;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* Step indicator */
+    .step-indicator {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 26px;
+    }
+
+    .step-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      transition: all 0.3s;
+    }
+
+    .step-dot.active {
+      background: var(--primary-color);
+      box-shadow: 0 0 8px rgba(59, 112, 252, 0.5);
+    }
+
+    .step-dot.done {
+      background: var(--success);
+    }
+
+    .step-line {
+      width: 32px;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 1px;
+    }
+
+    /* Step content */
+    .step-content {
+      display: none;
+    }
+
+    .step-content.active {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .step-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+
+    /* Form */
+    .form-group {
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 11px 14px;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      transition: all 0.3s;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
+    }
+
+    .form-input::placeholder { color: rgba(255, 255, 255, 0.35); }
+
+    .form-input:focus {
+      outline: none;
+      border-color: rgba(103, 175, 255, 0.6);
+      background: rgba(0, 0, 0, 0.4);
+      box-shadow: 0 0 0 3px rgba(103, 175, 255, 0.15);
+    }
+
+    textarea.form-input {
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 14px;
+    }
+
+    .form-row .form-group { flex: 1; }
+
+    .hint {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.3);
+      margin-top: 4px;
+    }
+
+    /* Segmented control */
+    .seg-group {
+      display: flex;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .seg-btn {
+      flex: 1;
+      text-align: center;
+      padding: 9px 0;
+      font-size: 13px;
+      font-family: inherit;
+      color: rgba(255, 255, 255, 0.45);
+      cursor: pointer;
+      transition: all 0.25s;
+      border: none;
+      background: none;
+    }
+
+    .seg-btn:hover { color: rgba(255, 255, 255, 0.7); }
+
+    .seg-btn.active {
+      background: rgba(59, 112, 252, 0.25);
+      color: #fff;
+      font-weight: 500;
+    }
+
+    /* Toggle switch */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+    }
+
+    .toggle-label { font-size: 14px; }
+
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .toggle-track::before {
+      content: '';
+      position: absolute;
+      left: 2px;
+      top: 2px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: white;
+      transition: 0.3s;
+    }
+
+    .toggle input:checked + .toggle-track {
+      background: var(--success);
+    }
+
+    .toggle input:checked + .toggle-track::before {
+      transform: translateX(20px);
+    }
+
+    /* Advanced section */
+    .advanced-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      margin: 8px 0 12px;
+      user-select: none;
+    }
+
+    .advanced-toggle i {
+      font-size: 10px;
+      transition: transform 0.25s;
+    }
+
+    .advanced-toggle.open i { transform: rotate(90deg); }
+
+    .advanced-content { display: none; }
+    .advanced-content.open { display: block; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.3s;
+      color: white;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #3b70fc, #667eea);
+      box-shadow: 0 6px 16px rgba(59, 112, 252, 0.3);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(59, 112, 252, 0.4);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.14); }
+
+    .btn-success {
+      background: linear-gradient(135deg, #10b981, #34d399);
+      box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-success:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-success:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-full { width: 100%; }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .btn-group .btn { flex: 1; }
+
+    /* Test result */
+    .test-result {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+
+    .test-result.show { display: flex; }
+
+    .test-result.success {
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #6ee7b7;
+    }
+
+    .test-result.error {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      color: #fca5a5;
+    }
+
+    /* Status card */
+    .status-card {
+      text-align: center;
+      padding: 24px 16px;
+    }
+
+    .status-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .status-icon.success { color: var(--success); }
+    .status-icon.error { color: var(--danger); }
+
+    .status-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .status-desc {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    /* Overlay */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 5, 15, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .overlay.show { display: flex; }
+
+    .overlay-content { text-align: center; }
+
+    .overlay-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(255, 255, 255, 0.15);
+      border-top-color: var(--primary-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .overlay-text {
+      font-size: 15px;
+      color: var(--text-muted);
+    }
+
+    /* Localhost warning */
+    .localhost-warning {
+      display: none;
+      text-align: center;
+      padding: 32px 16px;
+    }
+
+    .localhost-warning i {
+      font-size: 48px;
+      color: var(--danger);
+      margin-bottom: 16px;
+    }
+
+    .localhost-warning p {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin: 8px 0;
+    }
+
+    @media (max-width: 640px) {
+      .setup-container { padding: 28px 24px; }
+      .form-row { flex-direction: column; gap: 0; }
+    }
+  </style>
+  <script src="/theme.js"></script>
+</head>
+
+<body>
+  <div class="setup-container">
+    <div class="setup-header">
+      <div class="brand-icon">
+        <i class="fa-solid fa-layer-group"></i>
+      </div>
+      <h2>Arona WebUI</h2>
+      <p>初始配置向导</p>
+    </div>
+
+    <div class="step-indicator">
+      <div class="step-dot active" id="dot-1"></div>
+      <div class="step-line"></div>
+      <div class="step-dot" id="dot-2"></div>
+      <div class="step-line"></div>
+      <div class="step-dot" id="dot-3"></div>
+    </div>
+
+    <!-- Localhost warning (shown when accessed from non-localhost) -->
+    <div class="localhost-warning" id="localhost-warning">
+      <i class="fas fa-shield-halved"></i>
+      <p style="font-size: 16px; font-weight: 600; color: var(--text-primary);">仅限本机访问</p>
+      <p>Setup 配置向导仅允许从 localhost 访问。<br>请在服务器本机打开此页面。</p>
+    </div>
+
+    <!-- Step 1: WebUI Config -->
+    <div id="step-1" class="step-content active">
+      <div class="step-title">Step 1 &middot; WebUI 配置</div>
+
+      <div class="form-group">
+        <label>Gateway URL</label>
+        <input type="text" id="gateway-url" class="form-input" placeholder="ws://127.0.0.1:18789" value="ws://127.0.0.1:18789">
+      </div>
+
+      <div class="form-group">
+        <label>认证方式</label>
+        <div class="seg-group" id="auth-mode-seg">
+          <button type="button" class="seg-btn active" data-value="password">Password</button>
+          <button type="button" class="seg-btn" data-value="token">Token</button>
+          <button type="button" class="seg-btn" data-value="none">None</button>
+        </div>
+      </div>
+
+      <div class="form-group" id="credential-group">
+        <label id="credential-label">密码</label>
+        <input type="password" id="credential" class="form-input" placeholder="输入密码">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>管理员用户名</label>
+          <input type="text" id="username" class="form-input" placeholder="admin" value="admin">
+        </div>
+        <div class="form-group">
+          <label>WebUI 端口</label>
+          <input type="number" id="port" class="form-input" placeholder="18790" value="18790">
+        </div>
+      </div>
+
+      <div class="advanced-toggle" id="adv-toggle">
+        <i class="fas fa-chevron-right"></i>
+        <span>高级选项</span>
+      </div>
+
+      <div class="advanced-content" id="adv-content">
+        <div class="form-group">
+          <label>Origin</label>
+          <input type="text" id="origin" class="form-input" placeholder="http://localhost:18790">
+          <div class="hint">浏览器访问 WebUI 的地址，用于 WebSocket 握手</div>
+        </div>
+        <div class="form-group">
+          <label>Public WS URL</label>
+          <input type="text" id="public-ws-url" class="form-input" placeholder="留空则自动检测">
+          <div class="hint">浏览器直连网关的 WebSocket 地址（反向代理场景需要）</div>
+        </div>
+      </div>
+
+      <div id="test-result" class="test-result"></div>
+
+      <div class="btn-group">
+        <button type="button" class="btn btn-secondary" id="btn-test" onclick="testConnection()">
+          <i class="fas fa-plug"></i> 测试连接
+        </button>
+        <button type="button" class="btn btn-primary" id="btn-save" onclick="saveAndRestart()" disabled>
+          <i class="fas fa-save"></i> 保存并重启
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 2: Connection Status -->
+    <div id="step-2" class="step-content">
+      <div class="status-card">
+        <div class="status-icon error">
+          <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div class="status-title">网关未连接</div>
+        <div class="status-desc" id="step2-desc">
+          重启后未能自动连接到网关，请检查网关是否已启动。
+        </div>
+        <div class="btn-group">
+          <button type="button" class="btn btn-secondary" onclick="goStep(1)">
+            <i class="fas fa-arrow-left"></i> 返回修改
+          </button>
+          <button type="button" class="btn btn-primary" onclick="retryConnection()">
+            <i class="fas fa-redo"></i> 重新检测
+          </button>
+        </div>
+        <div style="margin-top: 12px;">
+          <button type="button" class="btn btn-secondary btn-full" onclick="goStep(3)" style="font-size: 13px; padding: 9px;">
+            跳过，继续配置网关 <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Gateway Config -->
+    <div id="step-3" class="step-content">
+      <div class="step-title">Step 3 &middot; 网关配置（可选）</div>
+
+      <div class="form-group">
+        <label>监听模式</label>
+        <div class="seg-group" id="bind-mode-seg">
+          <button type="button" class="seg-btn active" data-value="loopback">仅本机 (127.0.0.1)</button>
+          <button type="button" class="seg-btn" data-value="lan">局域网 (0.0.0.0)</button>
+        </div>
+        <div class="hint">局域网模式允许其他设备通过 IP 访问网关</div>
+      </div>
+
+      <div class="form-group">
+        <label>Allowed Origins</label>
+        <textarea id="allowed-origins" class="form-input" rows="3" placeholder="http://localhost:18790"></textarea>
+        <div class="hint">每行一个，允许连接网关 WebSocket 的来源地址</div>
+      </div>
+
+      <div class="form-group">
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">跳过设备配对</div>
+            <div class="hint" style="margin-top: 2px;">dangerouslyDisableDeviceAuth</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="disable-device-auth" checked>
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+      </div>
+
+      <div id="gateway-result" class="test-result"></div>
+
+      <div class="btn-group">
+        <button type="button" class="btn btn-secondary" onclick="skipToDashboard()">
+          跳过
+        </button>
+        <button type="button" class="btn btn-success" id="btn-apply-gw" onclick="applyGateway()">
+          <i class="fas fa-bolt"></i> 应用到网关
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Restart overlay -->
+  <div class="overlay" id="restart-overlay">
+    <div class="overlay-content">
+      <div class="overlay-spinner"></div>
+      <div class="overlay-text" id="overlay-text">正在重启服务...</div>
+    </div>
+  </div>
+
+  <script>
+    let currentStep = 1;
+    let testPassed = false;
+
+    /* ---------- Step navigation ---------- */
+
+    function goStep(step) {
+      currentStep = step;
+      document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
+      document.getElementById('step-' + step).classList.add('active');
+      document.querySelectorAll('.step-dot').forEach((dot, i) => {
+        dot.classList.remove('active', 'done');
+        if (i === step - 1) dot.classList.add('active');
+        else if (i < step - 1) dot.classList.add('done');
+      });
+    }
+
+    /* ---------- Segmented controls ---------- */
+
+    document.querySelectorAll('.seg-group').forEach(group => {
+      group.querySelectorAll('.seg-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          group.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+
+          if (group.id === 'auth-mode-seg') {
+            const mode = btn.dataset.value;
+            const credGroup = document.getElementById('credential-group');
+            const credLabel = document.getElementById('credential-label');
+            credGroup.style.display = mode === 'none' ? 'none' : '';
+            credLabel.textContent = mode === 'token' ? 'Token' : '密码';
+            document.getElementById('credential').type = mode === 'token' ? 'text' : 'password';
+            document.getElementById('credential').placeholder = mode === 'token' ? '输入 Token' : '输入密码';
+          }
+
+          if (group.id === 'bind-mode-seg') {
+            suggestOrigins();
+          }
+        });
+      });
+    });
+
+    /* ---------- Advanced toggle ---------- */
+
+    document.getElementById('adv-toggle').addEventListener('click', () => {
+      document.getElementById('adv-toggle').classList.toggle('open');
+      document.getElementById('adv-content').classList.toggle('open');
+    });
+
+    /* ---------- Port → origin auto-sync ---------- */
+
+    document.getElementById('port').addEventListener('input', () => {
+      const port = document.getElementById('port').value || '18790';
+      const origin = document.getElementById('origin');
+      if (!origin.dataset.userEdited) {
+        origin.value = 'http://localhost:' + port;
+      }
+    });
+
+    document.getElementById('origin').addEventListener('input', () => {
+      document.getElementById('origin').dataset.userEdited = 'true';
+    });
+
+    /* ---------- Helpers ---------- */
+
+    function getFormValues() {
+      const authMode = (document.querySelector('#auth-mode-seg .seg-btn.active') || {}).dataset?.value || 'password';
+      const port = document.getElementById('port').value.trim() || '18790';
+      return {
+        gatewayUrl: document.getElementById('gateway-url').value.trim(),
+        authMode,
+        credential: document.getElementById('credential').value.trim(),
+        username: document.getElementById('username').value.trim(),
+        port,
+        origin: document.getElementById('origin').value.trim() || ('http://localhost:' + port),
+        publicWsUrl: document.getElementById('public-ws-url').value.trim()
+      };
+    }
+
+    function suggestOrigins() {
+      const mode = (document.querySelector('#bind-mode-seg .seg-btn.active') || {}).dataset?.value || 'loopback';
+      const port = document.getElementById('port').value || '18790';
+      const ta = document.getElementById('allowed-origins');
+      const lines = ['http://localhost:' + port, 'http://127.0.0.1:' + port];
+      if (mode === 'lan') lines.push('http://0.0.0.0:' + port);
+      ta.value = lines.join('\n');
+    }
+
+    function showResult(id, ok, msg) {
+      const el = document.getElementById(id);
+      el.className = 'test-result show ' + (ok ? 'success' : 'error');
+      el.innerHTML = '<i class="fas fa-' + (ok ? 'check-circle' : 'times-circle') + '"></i> ' + msg;
+    }
+
+    function setBtnLoading(btn, loading, label) {
+      btn.disabled = loading;
+      if (loading) {
+        btn.dataset.origLabel = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (label || '');
+      } else if (btn.dataset.origLabel) {
+        btn.innerHTML = btn.dataset.origLabel;
+        delete btn.dataset.origLabel;
+      }
+    }
+
+    /* ---------- Step 1: Test connection ---------- */
+
+    async function testConnection() {
+      const btn = document.getElementById('btn-test');
+      setBtnLoading(btn, true, '测试中...');
+      const vals = getFormValues();
+
+      try {
+        const res = await fetch('/api/setup/test-connection', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(vals)
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          showResult('test-result', true, '连接成功！');
+          testPassed = true;
+          document.getElementById('btn-save').disabled = false;
+        } else {
+          showResult('test-result', false, data.error || '连接失败');
+          testPassed = false;
+          document.getElementById('btn-save').disabled = true;
+        }
+      } catch (err) {
+        showResult('test-result', false, err.message);
+      }
+
+      setBtnLoading(btn, false);
+    }
+
+    /* ---------- Step 1: Save and restart ---------- */
+
+    async function saveAndRestart() {
+      const btn = document.getElementById('btn-save');
+      setBtnLoading(btn, true, '保存中...');
+      const vals = getFormValues();
+
+      try {
+        await fetch('/api/setup/env', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(vals)
+        });
+      } catch { /* server will exit */ }
+
+      document.getElementById('restart-overlay').classList.add('show');
+      document.getElementById('overlay-text').textContent = '正在重启服务...';
+
+      await new Promise(r => setTimeout(r, 2500));
+      await pollForRecovery();
+    }
+
+    async function pollForRecovery() {
+      const maxAttempts = 30;
+      for (let i = 0; i < maxAttempts; i++) {
+        document.getElementById('overlay-text').textContent =
+          '等待服务恢复... (' + (i + 1) + '/' + maxAttempts + ')';
+        try {
+          const res = await fetch('/api/setup/status', { signal: AbortSignal.timeout(2000) });
+          if (res.ok) {
+            const data = await res.json();
+            document.getElementById('restart-overlay').classList.remove('show');
+            suggestOrigins();
+            if (data.gatewayConnected) {
+              goStep(3);
+            } else {
+              goStep(2);
+            }
+            return;
+          }
+        } catch { /* not ready yet */ }
+        await new Promise(r => setTimeout(r, 1000));
+      }
+
+      document.getElementById('restart-overlay').classList.remove('show');
+      goStep(2);
+      document.getElementById('step2-desc').textContent = '服务重启超时，请手动检查。';
+    }
+
+    /* ---------- Step 2: Retry ---------- */
+
+    async function retryConnection() {
+      try {
+        const res = await fetch('/api/setup/status');
+        const data = await res.json();
+        if (data.gatewayConnected) {
+          suggestOrigins();
+          goStep(3);
+        } else {
+          document.getElementById('step2-desc').textContent =
+            '仍未连接，请检查网关是否已启动并确认配置正确。';
+        }
+      } catch (err) {
+        document.getElementById('step2-desc').textContent = '检测失败: ' + err.message;
+      }
+    }
+
+    /* ---------- Step 3: Apply gateway config ---------- */
+
+    async function applyGateway() {
+      const btn = document.getElementById('btn-apply-gw');
+      setBtnLoading(btn, true, '应用中...');
+
+      const bindMode = (document.querySelector('#bind-mode-seg .seg-btn.active') || {}).dataset?.value || 'loopback';
+      const originsText = document.getElementById('allowed-origins').value.trim();
+      const allowedOrigins = originsText ? originsText.split('\n').map(s => s.trim()).filter(Boolean) : [];
+      const disableDeviceAuth = document.getElementById('disable-device-auth').checked;
+
+      try {
+        const res = await fetch('/api/setup/gateway', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bindMode, allowedOrigins, disableDeviceAuth })
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          showResult('gateway-result', true, '网关配置已更新！即将跳转到控制台...');
+          setTimeout(() => { window.location.href = '/'; }, 1500);
+        } else {
+          showResult('gateway-result', false, data.error || '应用失败');
+        }
+      } catch (err) {
+        showResult('gateway-result', false, err.message);
+      }
+
+      setBtnLoading(btn, false);
+    }
+
+    function skipToDashboard() {
+      window.location.href = '/';
+    }
+
+    /* ---------- Init ---------- */
+
+    async function init() {
+      try {
+        const res = await fetch('/api/setup/status');
+
+        if (res.status === 403) {
+          document.getElementById('localhost-warning').style.display = 'block';
+          document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
+          document.querySelector('.step-indicator').style.display = 'none';
+          return;
+        }
+
+        const data = await res.json();
+        if (!data.ok) return;
+
+        const c = data.config;
+        if (c.gatewayUrl) document.getElementById('gateway-url').value = c.gatewayUrl;
+        if (c.username) document.getElementById('username').value = c.username;
+        if (c.port) document.getElementById('port').value = c.port;
+        if (c.origin) {
+          document.getElementById('origin').value = c.origin;
+          document.getElementById('origin').dataset.userEdited = 'true';
+        }
+        if (c.publicWsUrl) document.getElementById('public-ws-url').value = c.publicWsUrl;
+
+        if (c.authMode) {
+          document.querySelectorAll('#auth-mode-seg .seg-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.value === c.authMode);
+          });
+          const credGroup = document.getElementById('credential-group');
+          credGroup.style.display = c.authMode === 'none' ? 'none' : '';
+          if (c.authMode === 'token') {
+            document.getElementById('credential-label').textContent = 'Token';
+            document.getElementById('credential').type = 'text';
+            document.getElementById('credential').placeholder = '输入 Token';
+          }
+        }
+
+        suggestOrigins();
+      } catch { /* fresh start */ }
+    }
+
+    init();
+  </script>
+</body>
+
+</html>

@@ -23,6 +23,7 @@ const state = {
   modelProvidersDraft: {},        // 模型提供商编辑草稿
   agentsDefaultsModelsDraft: {},  // Agent 默认模型 allowlist 草稿
   agentsDefaultModelDraft: null,  // Agent 默认主模型草稿
+  modelsAdvancedDrafts: { ... },  // 专用模型 / memorySearch 草稿（保留未暴露高级字段）
   deletedModelProviderKeys: new Set(), // 待作为 tombstone 下发的 Provider 删除集合
   deletedAllowlistModelRefs: new Set(), // 待作为 tombstone 下发的 allowlist 模型引用集合
   modelsApply: { ... },           // 模型配置保存/热重启恢复状态
@@ -78,6 +79,9 @@ let _skillsCache = [];  // 技能数据缓存，供配置弹窗读取
 - `deletedModelProviderKeys`：记录用户删除或重命名后需要在 `config.patch` 中发送 `null` tombstone 的 provider key。
 - `agentsDefaultsModelsDraft`：当前模型页里“Agent 可用” allowlist 的前端草稿。
 - `agentsDefaultModelDraft`：当前模型页里“设为默认”对应的默认模型草稿。
+- `modelsAdvancedDrafts`：当前模型页里专用模型与 Embedding 的前端草稿，包含 `imageModel` / `imageGenerationModel` / `pdfModel` / `pdfMaxBytesMb` / `pdfMaxPages` / `summarize` / `subagents` / `memorySearch`。
+- `modelsAdvancedDrafts.summarize` 与 `modelsAdvancedDrafts.subagents` 只会被当前 UI 修改少数字段（如 `model`、`timeoutSeconds`、`thinking`）；保存时必须保留对象里原有的其他键。
+- `modelsAdvancedDrafts.memorySearch` 当前 UI 只编辑 `enabled|provider|model|remote.baseUrl|remote.apiKey|fallback`；像 `remote.headers`、`remote.batch`、`local`、`store`、`chunking`、`query` 这类高级字段必须在 round-trip 时保留。
 - `deletedAllowlistModelRefs`：记录取消勾选或删除后需要在 `config.patch` 中发送 `null` tombstone 的模型引用。
 - `modelsApply.phase`：`"idle" | "restarting" | "error"`，驱动“网关热重启中”状态徽标和按钮禁用 / 重试连接状态。
 - `modelsApply.message`：当前热重启提示文案；在轮询恢复期间动态更新。

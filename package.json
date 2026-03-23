@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node src/server.mjs"
+    "start": "node src/server.mjs",
+    "chrome:devtools": "bash ./scripts/start-chrome-devtools.sh"
   },
   "dependencies": {
     "cronstrue": "^3.13.0",

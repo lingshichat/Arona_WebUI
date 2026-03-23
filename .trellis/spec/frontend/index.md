@@ -65,6 +65,12 @@ Rendered into `index.html` sections by `app.js`:
 - **Theming**: CSS custom properties toggled by `theme.js`
 - **Chat transport**: browser bootstraps from `/api/gateway-auth`, then `GatewayClient` talks to gateway WS directly
 
+Current Models view scope:
+- Provider/catalog editing via `models.providers`
+- Agent allowlist + default model via `agents.defaults.models` and `agents.defaults.model`
+- Dedicated model settings via `agents.defaults.imageModel|imageGenerationModel|pdfModel|summarize|subagents`
+- Memory embeddings via `agents.defaults.memorySearch`
+
 ---
 
 ## Conventions

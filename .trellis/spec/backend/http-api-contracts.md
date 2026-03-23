@@ -117,21 +117,48 @@
     "configHash": "<hash>",
     "modelsConfig": { "providers": { "...": {} } },
     "agentsDefaultsModels": { "<provider/model>": { "...": "..." } },
-    "agentsDefaultModel": { "primary": "<provider/model>", "fallbacks": ["<provider/model>"] }
+    "agentsDefaultModel": { "primary": "<provider/model>", "fallbacks": ["<provider/model>"] },
+    "imageModel": { "primary": "<provider/model>", "fallbacks": ["<provider/model>"] },
+    "imageGenerationModel": { "primary": "<provider/model>", "fallbacks": ["<provider/model>"] },
+    "pdfModel": { "primary": "<provider/model>", "fallbacks": ["<provider/model>"] },
+    "pdfMaxBytesMb": 20,
+    "pdfMaxPages": 60,
+    "summarize": { "model": { "primary": "<provider/model>" }, "timeoutSeconds": 30 },
+    "subagents": { "model": { "primary": "<provider/model>" }, "thinking": "medium" },
+    "memorySearch": {
+      "enabled": true,
+      "provider": "openai",
+      "model": "text-embedding-3-small",
+      "remote": { "baseUrl": "https://example.com/v1", "apiKey": "__OPENCLAW_REDACTED__" },
+      "fallback": "none"
+    }
   }
   ```
 - `/api/models/save` forwards one combined `config.patch({ raw, baseHash, note })` with note `"MVP dashboard updated model/provider config"`.
-- Browser currently uses that combined patch to update three config slices together:
+- Browser currently uses that combined patch to update all model-management slices together:
   - `models.providers`
   - `agents.defaults.models`
   - `agents.defaults.model`
+- Browser also updates these optional defaults slices through the same save:
+  - `agents.defaults.imageModel`
+  - `agents.defaults.imageGenerationModel`
+  - `agents.defaults.pdfModel`
+  - `agents.defaults.pdfMaxBytesMb`
+  - `agents.defaults.pdfMaxPages`
+  - `agents.defaults.summarize`
+  - `agents.defaults.subagents`
+  - `agents.defaults.memorySearch`
 - Browser editor depends on provider config round-tripping extra fields. Managed keys are `baseUrl|baseURL|url|apiKey|api|apiType|type|models`; everything else must survive save.
 - Browser provider save normalizes legacy adapter fields `apiType` / `type` into gateway-schema `api` before calling `/api/models/save`.
 - Browser provider delete / rename emits `models.providers.<key> = null` tombstones so `config.patch` actually removes old provider keys instead of merging them back.
 - Browser provider model rows always serialize as object entries; when `name` is omitted in the form, save falls back to `name = id` to satisfy gateway schema.
 - Browser model allowlist save emits `agents.defaults.models.<provider/model> = null` tombstones for refs that were unchecked or removed, so stale allowlist entries do not merge back.
 - Browser “设为默认” UI writes `agents.defaults.model.primary`; when the selected default is cleared by draft changes, save may send `agentsDefaultModel = null` to remove the config key.
-- `__OPENCLAW_REDACTED__` is a browser-only placeholder; save callers must remove it before sending.
+- Browser专用模型 UI normalizes all AgentModel-like inputs to `{ primary, fallbacks } | null` in save payloads, even if the original config used a bare string.
+- Browser只管理 `summarize.model|summarize.timeoutSeconds` 与 `subagents.model|subagents.thinking`，其余现存字段必须在保存时原样保留。
+- Browser memory-search editor only manages `enabled|provider|model|remote.baseUrl|remote.apiKey|fallback`; advanced keys such as `remote.headers`, `remote.batch`, `local`, `store`, `chunking`, and `query` must survive save unchanged.
+- `memorySearch.provider` UI uses empty string to represent “auto-select”; callers should omit the field instead of sending `"auto"` back through `/api/models/save`.
+- `__OPENCLAW_REDACTED__` is a browser-only placeholder; save callers must remove it before sending for both provider API keys and `memorySearch.remote.apiKey`.
 
 #### Skills contract
 - `/api/skills` returns `skills[]`; browser currently reads `name`, `description`, `source`, `skillKey`, `disabled`, `eligible`, `blockedByAllowlist`, `missing`, `primaryEnv`, `install`, `emoji`.
@@ -178,15 +205,19 @@
 ### 5. Good / Base / Bad Cases
 - Good:
   - frontend reads `/api/models` directly from `modelList/configHash/modelsConfig`
+  - frontend treats blank memory-search provider as “auto” and omits it on save
   - logs filter resets cursor before polling so UI does not mix old and new slices
   - node invoke caller treats `idempotencyKey` as server-managed and does not send its own
 - Base:
   - `/api/skills/update` with only `{ skillKey, enabled }` is valid
   - `/api/cron/list?includeDisabled=true` returns jobs with optional injected `schedule.human`
+  - `/api/models/save` may send `summarize = null`, `subagents = null`, or `memorySearch = null` to remove those config slices
 - Bad:
   - caller assumes every success payload has `ok:true`
   - caller expects backend to validate every gateway param for nodes / cron / skills updates
   - provider editor drops extra JSON keys that are not in the form
+  - memory-search editor overwrites unexposed advanced keys because it rebuilds the object from scratch
+  - caller writes `agents.defaults.subagent.model` instead of the actual `agents.defaults.subagents.model`
 
 ### 6. Tests Required
 - Shared envelope
@@ -196,14 +227,19 @@
 - Models
   - `/api/models` returns `configHash` and `modelsConfig`
   - `/api/models` also returns `agentsDefaultsModels` and `agentsDefaultModel`
+  - `/api/models` also returns dedicated model slices: `imageModel`, `imageGenerationModel`, `pdfModel`, `pdfMaxBytesMb`, `pdfMaxPages`, `summarize`, `subagents`, `memorySearch`
   - `/api/models/save` forwards `baseHash`
-  - `/api/models/save` can patch `models.providers`, `agents.defaults.models`, and `agents.defaults.model` in one request
+  - `/api/models/save` can patch `models.providers`, `agents.defaults.models`, `agents.defaults.model`, and all dedicated-model / memory-search slices in one request
   - provider extra fields survive round-trip save
   - legacy provider `apiType` / `type` backfills and saves as `api`
   - deleting or renaming a provider removes the old provider key after reload
   - newly added provider models save as `{ id, name, ... }` objects instead of invalid string entries
   - unchecking a previously-allowlisted model removes the old `agents.defaults.models.<ref>` key after reload
   - selecting a default model persists `agents.defaults.model.primary`
+  - dedicated model editors accept config loaded as string or `{ primary, fallbacks }` and save a valid AgentModel payload
+  - `summarize` and `subagents` preserve unrelated existing keys while updating only the fields managed by the UI
+  - `memorySearch.remote.apiKey` redaction survives round-trip save when the user leaves the placeholder untouched
+  - `memorySearch` advanced keys survive save when only the managed fields are edited
 - Skills
   - `/api/skills/install` default `timeoutMs=120000`
   - `/api/skills/update` accepts enable-only and env/apiKey payloads

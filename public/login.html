@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>身份验证 | 什亭之箱</title>
+  <title>身份验证 | Arona WebUI</title>
   <link rel="stylesheet" href="/assets/fontawesome/css/all.min.css">
   <style>
     :root {
@@ -84,7 +84,18 @@
       border: 3px solid rgba(255, 255, 255, 0.9);
       margin-bottom: 24px;
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, rgba(59, 112, 252, 0.3), rgba(102, 126, 234, 0.3));
+      margin-left: auto;
+      margin-right: auto;
       transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .avatar i {
+      font-size: 36px;
+      color: rgba(255, 255, 255, 0.9);
     }
 
     .avatar:hover {
@@ -262,9 +273,11 @@
 
 <body>
   <div class="login-container">
-    <img src="/assets/avatar.jpg" alt="Arona" class="avatar">
-    <h2>什亭之箱</h2>
-    <p>Sensei, 欢迎回来。请验证您的终端权限。</p>
+    <div class="avatar">
+      <i class="fa-solid fa-layer-group"></i>
+    </div>
+    <h2>Arona WebUI</h2>
+    <p>请验证您的终端权限</p>
 
     <div class="input-group">
       <label>用户 (Username)</label>

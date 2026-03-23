@@ -33,6 +33,7 @@ const cronstrue = cronstruePlugin.default || cronstruePlugin;
 import { WebSocket } from "ws";
 
 const SESSIONS = new Map();
+const REDACTED_API_KEY_TOKEN = "__OPENCLAW_REDACTED__";
 
 function parsePositiveInt(value, fallback) {
   const parsed = Number.parseInt(value, 10);
@@ -42,6 +43,47 @@ function parsePositiveInt(value, fallback) {
 
 function hasOwn(obj, key) {
   return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function cloneJsonValue(value, fallback = null) {
+  if (value === undefined) return fallback;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return fallback;
+  }
+}
+
+function redactApiKeyField(target, key = "apiKey") {
+  if (!target || typeof target !== "object" || Array.isArray(target)) return target;
+  if (typeof target[key] === "string" && target[key].trim()) {
+    target[key] = REDACTED_API_KEY_TOKEN;
+  }
+  return target;
+}
+
+function readModelsConfigForResponse(config) {
+  const modelsConfig = cloneJsonValue(config?.parsed?.models, {}) || {};
+  const providers = modelsConfig && typeof modelsConfig === "object" && !Array.isArray(modelsConfig)
+    ? modelsConfig.providers
+    : null;
+  if (providers && typeof providers === "object" && !Array.isArray(providers)) {
+    for (const provider of Object.values(providers)) {
+      redactApiKeyField(provider);
+    }
+  }
+  return modelsConfig;
+}
+
+function readMemorySearchForResponse(config) {
+  const memorySearch = cloneJsonValue(config?.parsed?.agents?.defaults?.memorySearch, null);
+  if (!memorySearch || typeof memorySearch !== "object" || Array.isArray(memorySearch)) {
+    return memorySearch ?? null;
+  }
+  if (memorySearch.remote && typeof memorySearch.remote === "object" && !Array.isArray(memorySearch.remote)) {
+    redactApiKeyField(memorySearch.remote);
+  }
+  return memorySearch;
 }
 
 const INVALID_OPTIONAL_STRING = Symbol("invalid optional string");
@@ -921,9 +963,17 @@ async function handleApi(req, res, pathname, query) {
         return {
           modelList,
           configHash: config.hash,
-          modelsConfig: config.parsed?.models || {},
+          modelsConfig: readModelsConfigForResponse(config),
           agentsDefaultsModels: config.parsed?.agents?.defaults?.models || {},
-          agentsDefaultModel: config.parsed?.agents?.defaults?.model ?? null
+          agentsDefaultModel: config.parsed?.agents?.defaults?.model ?? null,
+          imageModel: config.parsed?.agents?.defaults?.imageModel ?? null,
+          imageGenerationModel: config.parsed?.agents?.defaults?.imageGenerationModel ?? null,
+          pdfModel: config.parsed?.agents?.defaults?.pdfModel ?? null,
+          pdfMaxBytesMb: config.parsed?.agents?.defaults?.pdfMaxBytesMb ?? null,
+          pdfMaxPages: config.parsed?.agents?.defaults?.pdfMaxPages ?? null,
+          summarize: config.parsed?.agents?.defaults?.summarize ?? null,
+          subagents: config.parsed?.agents?.defaults?.subagents ?? null,
+          memorySearch: readMemorySearchForResponse(config)
         };
       });
       return jsonResponse(res, 200, data);
@@ -936,13 +986,56 @@ async function handleApi(req, res, pathname, query) {
       };
       const hasAgentsDefaultsModels = hasOwn(body, "agentsDefaultsModels");
       const hasAgentsDefaultModel = hasOwn(body, "agentsDefaultModel");
-      if (hasAgentsDefaultsModels || hasAgentsDefaultModel) {
+      const hasImageModel = hasOwn(body, "imageModel");
+      const hasImageGenerationModel = hasOwn(body, "imageGenerationModel");
+      const hasPdfModel = hasOwn(body, "pdfModel");
+      const hasPdfMaxBytesMb = hasOwn(body, "pdfMaxBytesMb");
+      const hasPdfMaxPages = hasOwn(body, "pdfMaxPages");
+      const hasSummarize = hasOwn(body, "summarize");
+      const hasSubagents = hasOwn(body, "subagents");
+      const hasMemorySearch = hasOwn(body, "memorySearch");
+      if (
+        hasAgentsDefaultsModels
+        || hasAgentsDefaultModel
+        || hasImageModel
+        || hasImageGenerationModel
+        || hasPdfModel
+        || hasPdfMaxBytesMb
+        || hasPdfMaxPages
+        || hasSummarize
+        || hasSubagents
+        || hasMemorySearch
+      ) {
         payload.agents = { defaults: {} };
         if (hasAgentsDefaultsModels) {
           payload.agents.defaults.models = body.agentsDefaultsModels || {};
         }
         if (hasAgentsDefaultModel) {
           payload.agents.defaults.model = body.agentsDefaultModel;
+        }
+        if (hasImageModel) {
+          payload.agents.defaults.imageModel = body.imageModel;
+        }
+        if (hasImageGenerationModel) {
+          payload.agents.defaults.imageGenerationModel = body.imageGenerationModel;
+        }
+        if (hasPdfModel) {
+          payload.agents.defaults.pdfModel = body.pdfModel;
+        }
+        if (hasPdfMaxBytesMb) {
+          payload.agents.defaults.pdfMaxBytesMb = body.pdfMaxBytesMb;
+        }
+        if (hasPdfMaxPages) {
+          payload.agents.defaults.pdfMaxPages = body.pdfMaxPages;
+        }
+        if (hasSummarize) {
+          payload.agents.defaults.summarize = body.summarize;
+        }
+        if (hasSubagents) {
+          payload.agents.defaults.subagents = body.subagents;
+        }
+        if (hasMemorySearch) {
+          payload.agents.defaults.memorySearch = body.memorySearch;
         }
       }
       const result = await withGateway((gateway) =>

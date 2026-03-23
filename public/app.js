@@ -6,6 +6,18 @@ const state = {
   modelProvidersDraft: {},
   agentsDefaultsModelsDraft: {},
   agentsDefaultModelDraft: null,
+  modelsAdvancedDrafts: {
+    imageModel: null,
+    imageGenerationModel: null,
+    pdfModel: null,
+    pdfMaxBytesMb: null,
+    pdfMaxPages: null,
+    summarize: null,
+    subagents: null,
+    memorySearch: null
+  },
+  modelsAdvancedExpanded: false,
+  configModalDirty: false,
   deletedModelProviderKeys: new Set(),
   deletedAllowlistModelRefs: new Set(),
   modelsApply: {
@@ -93,6 +105,62 @@ const state = {
 
 const REDACTED_API_KEY_TOKEN = "__OPENCLAW_REDACTED__";
 const CHAT_STREAM_CURSOR_FADE_MS = 320;
+const DEDICATED_MODEL_FIELDS = [
+  {
+    key: "imageModel",
+    title: "图像理解模型",
+    hint: "当对话包含图片时，优先使用这里的模型理解图片内容。"
+  },
+  {
+    key: "imageGenerationModel",
+    title: "图像生成模型",
+    hint: "用于生成图片；仅在工作流明确调用生图能力时生效。"
+  },
+  {
+    key: "pdfModel",
+    title: "PDF 模型",
+    hint: "用于读取和理解 PDF 文件，可额外限制文件大小和页数。"
+  },
+  {
+    key: "summarizeModel",
+    title: "摘要模型",
+    hint: "用于上下文压缩与总结，避免长会话把主模型窗口撑满。"
+  },
+  {
+    key: "subagentsModel",
+    title: "子代理模型",
+    hint: "用于工具调用和子任务执行，适合放更稳或更便宜的模型。"
+  }
+];
+const MEMORY_SEARCH_PROVIDER_OPTIONS = [
+  { value: "", label: "自动选择（留空）" },
+  { value: "openai", label: "OpenAI" },
+  { value: "gemini", label: "Gemini" },
+  { value: "voyage", label: "Voyage" },
+  { value: "mistral", label: "Mistral" },
+  { value: "ollama", label: "Ollama" },
+  { value: "local", label: "Local" }
+];
+const MEMORY_SEARCH_FALLBACK_OPTIONS = [
+  { value: "", label: "默认（none）" },
+  { value: "none", label: "None" },
+  { value: "openai", label: "OpenAI" },
+  { value: "gemini", label: "Gemini" },
+  { value: "voyage", label: "Voyage" },
+  { value: "mistral", label: "Mistral" },
+  { value: "ollama", label: "Ollama" },
+  { value: "local", label: "Local" }
+];
+const SUBAGENT_THINKING_OPTIONS = [
+  { value: "", label: "跟随默认" },
+  { value: "off", label: "off" },
+  { value: "minimal", label: "minimal" },
+  { value: "low", label: "low" },
+  { value: "medium", label: "medium" },
+  { value: "high", label: "high" },
+  { value: "xhigh", label: "xhigh" },
+  { value: "adaptive", label: "adaptive" }
+];
 
 // Skills 缓存，供配置弹窗读取
 let _skillsCache = [];
@@ -1573,6 +1641,12 @@ function cloneAgentModelsConfig(value) {
   return cloneProviderConfig(value);
 }
 
+function cloneOptionalConfigObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const cloned = cloneProviderConfig(value);
+  return Object.keys(cloned).length > 0 ? cloned : null;
+}
+
 function sortKeysDeep(value) {
   if (Array.isArray(value)) {
     return value.map((item) => sortKeysDeep(item));
@@ -1588,7 +1662,7 @@ function sortKeysDeep(value) {
   return sorted;
 }
 
-function cloneAgentDefaultModelConfig(value) {
+function cloneAgentModelConfig(value) {
   if (typeof value === "string") {
     const primary = value.trim();
     return primary ? { primary } : null;
@@ -1608,6 +1682,90 @@ function cloneAgentDefaultModelConfig(value) {
   else delete source.fallbacks;
 
   return Object.keys(source).length > 0 ? source : null;
+}
+
+function cloneAgentDefaultModelConfig(value) {
+  return cloneAgentModelConfig(value);
+}
+
+function cloneMemorySearchConfig(value) {
+  const source = cloneOptionalConfigObject(value);
+  if (!source) return null;
+
+  if (typeof source.provider === "string") {
+    source.provider = source.provider.trim();
+    if (!source.provider) delete source.provider;
+  }
+  if (typeof source.model === "string") {
+    source.model = source.model.trim();
+    if (!source.model) delete source.model;
+  }
+  if (typeof source.fallback === "string") {
+    source.fallback = source.fallback.trim();
+    if (!source.fallback) delete source.fallback;
+  }
+
+  if (source.remote && typeof source.remote === "object" && !Array.isArray(source.remote)) {
+    const remote = cloneProviderConfig(source.remote);
+    if (typeof remote.baseUrl === "string") {
+      remote.baseUrl = remote.baseUrl.trim();
+      if (!remote.baseUrl) delete remote.baseUrl;
+    }
+    if (typeof remote.apiKey === "string") {
+      remote.apiKey = remote.apiKey.trim();
+      if (!remote.apiKey) delete remote.apiKey;
+    }
+    source.remote = Object.keys(remote).length > 0 ? remote : undefined;
+  }
+
+  if (source.remote === undefined) {
+    delete source.remote;
+  }
+
+  return Object.keys(source).length > 0 ? source : null;
+}
+
+function normalizeOptionalPositiveNumber(value) {
+  if (value === "" || value === null || value === undefined) return null;
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
+
+function normalizeOptionalPositiveInteger(value) {
+  if (value === "" || value === null || value === undefined) return null;
+  const num = Number(value);
+  return Number.isInteger(num) && num > 0 ? num : null;
+}
+
+function normalizeComparableConfigObject(value) {
+  return sortKeysDeep(cloneOptionalConfigObject(value));
+}
+
+function normalizeComparableAgentModelConfig(value) {
+  return sortKeysDeep(cloneAgentModelConfig(value));
+}
+
+function normalizeComparableMemorySearchConfig(value) {
+  const source = cloneMemorySearchConfig(value);
+  if (!source) return null;
+  if (source.remote && typeof source.remote === "object" && !Array.isArray(source.remote)) {
+    delete source.remote.apiKey;
+    if (Object.keys(source.remote).length === 0) delete source.remote;
+  }
+  return sortKeysDeep(source);
+}
+
+function listAgentModelRefs(value) {
+  const normalized = cloneAgentModelConfig(value);
+  if (!normalized) return [];
+  const refs = [];
+  if (typeof normalized.primary === "string" && normalized.primary.trim()) {
+    refs.push(normalized.primary.trim());
+  }
+  if (Array.isArray(normalized.fallbacks)) {
+    refs.push(...normalized.fallbacks.map((item) => String(item).trim()).filter(Boolean));
+  }
+  return Array.from(new Set(refs));
 }
 
 function getAgentDefaultModelPrimary(value = state.agentsDefaultModelDraft) {
@@ -1690,10 +1848,7 @@ function normalizeComparableProviders(providers = {}) {
   for (const [providerKey, rawProvider] of Object.entries(providers || {})) {
     if (!rawProvider || typeof rawProvider !== "object" || Array.isArray(rawProvider)) continue;
     const provider = cloneProviderConfig(rawProvider);
-    const apiKey = typeof provider.apiKey === "string" ? provider.apiKey.trim() : "";
-    if (!apiKey || apiKey === REDACTED_API_KEY_TOKEN) {
-      delete provider.apiKey;
-    }
+    delete provider.apiKey;
     normalized[providerKey] = sortKeysDeep(provider);
   }
   return sortKeysDeep(normalized);
@@ -1711,7 +1866,15 @@ function captureExpectedModelsState() {
   return {
     providers: cloneProviderConfig(state.modelProvidersDraft),
     agentsDefaultsModels: cloneAgentModelsConfig(state.agentsDefaultsModelsDraft),
-    agentsDefaultModel: cloneAgentDefaultModelConfig(state.agentsDefaultModelDraft)
+    agentsDefaultModel: cloneAgentDefaultModelConfig(state.agentsDefaultModelDraft),
+    imageModel: cloneAgentModelConfig(state.modelsAdvancedDrafts.imageModel),
+    imageGenerationModel: cloneAgentModelConfig(state.modelsAdvancedDrafts.imageGenerationModel),
+    pdfModel: cloneAgentModelConfig(state.modelsAdvancedDrafts.pdfModel),
+    pdfMaxBytesMb: normalizeOptionalPositiveNumber(state.modelsAdvancedDrafts.pdfMaxBytesMb),
+    pdfMaxPages: normalizeOptionalPositiveInteger(state.modelsAdvancedDrafts.pdfMaxPages),
+    summarize: cloneOptionalConfigObject(state.modelsAdvancedDrafts.summarize),
+    subagents: cloneOptionalConfigObject(state.modelsAdvancedDrafts.subagents),
+    memorySearch: cloneMemorySearchConfig(state.modelsAdvancedDrafts.memorySearch)
   };
 }
 
@@ -1721,14 +1884,38 @@ function modelsStateMatchesExpected(data, expected) {
   const currentProviders = normalizeComparableProviders(data.modelsConfig?.providers || {});
   const currentAllowlist = normalizeComparableAllowlist(data.agentsDefaultsModels || {});
   const currentDefaultModel = normalizeComparableDefaultModelConfig(data.agentsDefaultModel);
+  const currentImageModel = normalizeComparableAgentModelConfig(data.imageModel);
+  const currentImageGenerationModel = normalizeComparableAgentModelConfig(data.imageGenerationModel);
+  const currentPdfModel = normalizeComparableAgentModelConfig(data.pdfModel);
+  const currentPdfMaxBytesMb = normalizeOptionalPositiveNumber(data.pdfMaxBytesMb);
+  const currentPdfMaxPages = normalizeOptionalPositiveInteger(data.pdfMaxPages);
+  const currentSummarize = normalizeComparableConfigObject(data.summarize);
+  const currentSubagents = normalizeComparableConfigObject(data.subagents);
+  const currentMemorySearch = normalizeComparableMemorySearchConfig(data.memorySearch);
 
   const expectedProviders = normalizeComparableProviders(expected.providers || {});
   const expectedAllowlist = normalizeComparableAllowlist(expected.agentsDefaultsModels || {});
   const expectedDefaultModel = normalizeComparableDefaultModelConfig(expected.agentsDefaultModel);
+  const expectedImageModel = normalizeComparableAgentModelConfig(expected.imageModel);
+  const expectedImageGenerationModel = normalizeComparableAgentModelConfig(expected.imageGenerationModel);
+  const expectedPdfModel = normalizeComparableAgentModelConfig(expected.pdfModel);
+  const expectedPdfMaxBytesMb = normalizeOptionalPositiveNumber(expected.pdfMaxBytesMb);
+  const expectedPdfMaxPages = normalizeOptionalPositiveInteger(expected.pdfMaxPages);
+  const expectedSummarize = normalizeComparableConfigObject(expected.summarize);
+  const expectedSubagents = normalizeComparableConfigObject(expected.subagents);
+  const expectedMemorySearch = normalizeComparableMemorySearchConfig(expected.memorySearch);
 
   return JSON.stringify(currentProviders) === JSON.stringify(expectedProviders)
     && JSON.stringify(currentAllowlist) === JSON.stringify(expectedAllowlist)
-    && JSON.stringify(currentDefaultModel) === JSON.stringify(expectedDefaultModel);
+    && JSON.stringify(currentDefaultModel) === JSON.stringify(expectedDefaultModel)
+    && JSON.stringify(currentImageModel) === JSON.stringify(expectedImageModel)
+    && JSON.stringify(currentImageGenerationModel) === JSON.stringify(expectedImageGenerationModel)
+    && JSON.stringify(currentPdfModel) === JSON.stringify(expectedPdfModel)
+    && currentPdfMaxBytesMb === expectedPdfMaxBytesMb
+    && currentPdfMaxPages === expectedPdfMaxPages
+    && JSON.stringify(currentSummarize) === JSON.stringify(expectedSummarize)
+    && JSON.stringify(currentSubagents) === JSON.stringify(expectedSubagents)
+    && JSON.stringify(currentMemorySearch) === JSON.stringify(expectedMemorySearch);
 }
 
 function normalizeProviderEditorData(provider) {
@@ -2063,6 +2250,587 @@ function getProviderModelRows(provider) {
   return rows.filter((row) => row.id);
 }
 
+function getManagedDedicatedModelDraft(modelKey) {
+  switch (modelKey) {
+    case "summarizeModel":
+      return cloneAgentModelConfig(state.modelsAdvancedDrafts.summarize?.model);
+    case "subagentsModel":
+      return cloneAgentModelConfig(state.modelsAdvancedDrafts.subagents?.model);
+    default:
+      return cloneAgentModelConfig(state.modelsAdvancedDrafts[modelKey]);
+  }
+}
+
+function renderSelectOptions(options, currentValue = "") {
+  const normalizedCurrent = toTrimmedString(currentValue);
+  const entries = Array.isArray(options) ? options.slice() : [];
+  if (normalizedCurrent && !entries.some((option) => option.value === normalizedCurrent)) {
+    entries.unshift({ value: normalizedCurrent, label: normalizedCurrent });
+  }
+  return entries
+    .map((option) => `<option value="${escapeHtml(option.value)}"${option.value === normalizedCurrent ? " selected" : ""}>${escapeHtml(option.label)}</option>`)
+    .join("");
+}
+
+function getKnownModelRefs() {
+  const refs = new Set();
+  for (const [providerKey, provider] of Object.entries(state.modelProvidersDraft || {})) {
+    for (const ref of getProviderModelRefs(providerKey, provider)) refs.add(ref);
+  }
+  for (const ref of Object.keys(state.agentsDefaultsModelsDraft || {})) refs.add(ref);
+  for (const ref of listAgentModelRefs(state.agentsDefaultModelDraft)) refs.add(ref);
+  for (const ref of listAgentModelRefs(state.modelsAdvancedDrafts.imageModel)) refs.add(ref);
+  for (const ref of listAgentModelRefs(state.modelsAdvancedDrafts.imageGenerationModel)) refs.add(ref);
+  for (const ref of listAgentModelRefs(state.modelsAdvancedDrafts.pdfModel)) refs.add(ref);
+  for (const ref of listAgentModelRefs(state.modelsAdvancedDrafts.summarize?.model)) refs.add(ref);
+  for (const ref of listAgentModelRefs(state.modelsAdvancedDrafts.subagents?.model)) refs.add(ref);
+  return Array.from(refs).sort((a, b) => a.localeCompare(b, "zh-CN"));
+}
+
+function renderModelRefDatalist() {
+  const datalist = $("models-ref-options");
+  if (!datalist) return;
+  datalist.innerHTML = getKnownModelRefs()
+    .map((item) => `<option value="${escapeHtml(item)}"></option>`)
+    .join("");
+}
+
+function dedicatedModelFallbackRowTemplate(modelKey, value = "", index = 0) {
+  return `
+    <div class="models-agent-model-row" data-agent-model-row="${escapeHtml(modelKey)}">
+      <div class="config-row">
+        <label>备选模型 ${index + 1}</label>
+        <input
+          type="text"
+          class="skeuo-input form-control-mono models-agent-model-fallback"
+          data-agent-model-fallback="${escapeHtml(modelKey)}"
+          list="models-ref-options"
+          placeholder="如 openai/gpt-4.1-mini"
+          value="${escapeHtml(value)}"
+          spellcheck="false"
+        />
+      </div>
+      <button
+        type="button"
+        class="panel-action-btn btn-secondary btn-size-xs models-agent-model-remove"
+        data-agent-model-remove-fallback="${escapeHtml(modelKey)}"
+        aria-label="删除备选模型"
+      >
+        <i class="fa-regular fa-trash-can"></i>
+      </button>
+    </div>
+  `;
+}
+
+function renderDedicatedModelEditor(modelKey, value) {
+  const normalized = cloneAgentModelConfig(value);
+  const fallbacks = Array.isArray(normalized?.fallbacks) ? normalized.fallbacks : [];
+  return `
+    <div class="models-agent-model-editor" data-agent-model-editor="${escapeHtml(modelKey)}">
+      <div class="config-row">
+        <label>主模型</label>
+        <input
+          type="text"
+          class="skeuo-input form-control-mono models-agent-model-primary"
+          data-agent-model-primary="${escapeHtml(modelKey)}"
+          list="models-ref-options"
+          placeholder="如 anthropic/claude-opus-4-6"
+          value="${escapeHtml(normalized?.primary || "")}"
+          spellcheck="false"
+        />
+        <small class="form-hint">留空表示不覆盖当前网关默认值；填写时建议使用 <code>provider/model</code> 形式。</small>
+      </div>
+      <div class="models-agent-model-fallbacks" data-agent-model-fallback-list="${escapeHtml(modelKey)}">
+        ${fallbacks.map((item, index) => dedicatedModelFallbackRowTemplate(modelKey, item, index)).join("")}
+      </div>
+      <button
+        type="button"
+        class="panel-action-btn btn-secondary btn-block btn-dashed models-agent-model-add"
+        data-agent-model-add-fallback="${escapeHtml(modelKey)}"
+      >
+        <i class="fa-solid fa-plus"></i> 添加备选模型
+      </button>
+    </div>
+  `;
+}
+
+function getMemorySearchFormState(value = state.modelsAdvancedDrafts.memorySearch) {
+  const source = cloneMemorySearchConfig(value) || {};
+  const remote = cloneOptionalConfigObject(source.remote) || {};
+  const provider = toTrimmedString(source.provider);
+  return {
+    enabled: source.enabled === true,
+    provider: provider === "auto" ? "" : provider,
+    model: toTrimmedString(source.model),
+    baseUrl: toTrimmedString(remote.baseUrl),
+    apiKey: toTrimmedString(remote.apiKey),
+    fallback: toTrimmedString(source.fallback)
+  };
+}
+
+function countConfiguredDedicatedModels() {
+  let count = 0;
+  for (const item of DEDICATED_MODEL_FIELDS) {
+    const value = getManagedDedicatedModelDraft(item.key);
+    if (value && (value.primary || (Array.isArray(value.fallbacks) && value.fallbacks.length > 0))) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function renderModelsAdvancedSummary() {
+  const configuredDedicated = countConfiguredDedicatedModels();
+  const memoryInfo = getMemorySearchFormState();
+  const memoryStatus = memoryInfo.enabled ? "已启用" : "未启用";
+  const memoryLabel = memoryInfo.provider || "自动选择";
+  const primaryRefs = [
+    getManagedDedicatedModelDraft("imageModel")?.primary,
+    getManagedDedicatedModelDraft("pdfModel")?.primary,
+    getManagedDedicatedModelDraft("subagentsModel")?.primary
+  ].map((item) => toTrimmedString(item)).filter(Boolean);
+
+  return `
+    <button
+      type="button"
+      class="models-advanced-summary"
+      data-models-advanced-toggle
+      aria-expanded="${state.modelsAdvancedExpanded ? "true" : "false"}"
+    >
+      <span class="models-advanced-summary-icon">
+        <i class="fa-solid fa-sliders"></i>
+      </span>
+      <span class="models-advanced-summary-main">
+        <span class="models-advanced-summary-title">高级模型与记忆配置</span>
+        <span class="models-advanced-summary-copy">图像、PDF、摘要、子代理和 Embedding 的统一入口。默认收起，只在你要精调时展开。</span>
+      </span>
+      <span class="models-advanced-summary-meta">
+        <span class="status-badge dynamic">专用模型 ${configuredDedicated}/5</span>
+        <span class="status-badge ${memoryInfo.enabled ? "ok" : "dynamic"}">记忆搜索 ${memoryStatus}</span>
+        <span class="models-advanced-summary-inline">
+          <span class="models-advanced-summary-inline-label">Embedding</span>
+          <code class="models-advanced-summary-inline-code">${escapeHtml(memoryLabel)}</code>
+        </span>
+        ${primaryRefs[0] ? `<span class="models-advanced-summary-inline">
+          <span class="models-advanced-summary-inline-label">代表模型</span>
+          <code class="models-advanced-summary-inline-code">${escapeHtml(primaryRefs[0])}</code>
+        </span>` : ""}
+      </span>
+      <i class="fa-solid fa-chevron-down models-advanced-summary-chevron"></i>
+    </button>
+  `;
+}
+
+const ADVANCED_CONFIG_CHIP_DEFS = [
+  { key: "imageModel",            icon: "fa-eye",                  title: "图像理解" },
+  { key: "imageGenerationModel",  icon: "fa-wand-magic-sparkles",  title: "图像生成" },
+  { key: "pdfModel",              icon: "fa-file-pdf",             title: "PDF 处理" },
+  { key: "summarizeModel",        icon: "fa-compress",             title: "摘要模型" },
+  { key: "subagentsModel",        icon: "fa-microchip",            title: "子代理" },
+  { key: "memorySearch",          icon: "fa-brain",                title: "记忆搜索" }
+];
+
+function renderAdvancedConfigChip(def) {
+  let valueHtml = "";
+  if (def.key === "memorySearch") {
+    const info = getMemorySearchFormState();
+    const badgeClass = info.enabled ? "adv-config-chip-badge ok" : "adv-config-chip-badge muted";
+    const badgeLabel = info.enabled ? "已启用" : "未启用";
+    const providerLabel = info.provider || "自动";
+    valueHtml = `
+      <div class="adv-config-chip-value">
+        <span class="${badgeClass}">${badgeLabel}</span>
+        <span class="adv-config-chip-tag muted">${escapeHtml(providerLabel)}</span>
+      </div>`;
+  } else {
+    const draft = getManagedDedicatedModelDraft(def.key);
+    const primary = toTrimmedString(draft?.primary);
+    if (primary) {
+      valueHtml = `<div class="adv-config-chip-value"><span class="adv-config-chip-tag">${escapeHtml(primary)}</span></div>`;
+    } else {
+      valueHtml = `<div class="adv-config-chip-value"><span class="adv-config-chip-tag muted">未配置</span></div>`;
+    }
+  }
+  return `
+    <button
+      type="button"
+      class="adv-config-chip"
+      data-advanced-config-card="${escapeHtml(def.key)}"
+      aria-label="配置 ${escapeHtml(def.title)}"
+    >
+      <div class="adv-config-chip-icon">
+        <i class="fa-solid ${def.icon}"></i>
+      </div>
+      <div class="adv-config-chip-title">${escapeHtml(def.title)}</div>
+      ${valueHtml}
+    </button>`;
+}
+
+function renderAdvancedConfigGrid() {
+  return `<div class="adv-config-grid">${ADVANCED_CONFIG_CHIP_DEFS.map(renderAdvancedConfigChip).join("")}</div>`;
+}
+
+function renderModelsAdvancedDetail() {
+  if (!state.modelsAdvancedExpanded) return "";
+  return `
+    <div class="models-advanced-detail" data-models-advanced-detail>
+      <div class="models-config-section-divider">
+        <span class="models-config-section-divider-label">专用模型 &amp; 记忆</span>
+        <span class="models-config-section-divider-line"></span>
+      </div>
+      ${renderAdvancedConfigGrid()}
+    </div>
+  `;
+}
+
+function renderAdvancedConfigModalContent(configKey) {
+  const def = ADVANCED_CONFIG_CHIP_DEFS.find((d) => d.key === configKey);
+  if (!def) return "";
+
+  if (configKey === "memorySearch") {
+    return renderMemorySearchModalBody();
+  }
+
+  const dedicatedDef = DEDICATED_MODEL_FIELDS.find((d) => d.key === configKey);
+  const draft = getManagedDedicatedModelDraft(configKey);
+  let extraFieldsHtml = "";
+
+  if (configKey === "pdfModel") {
+    extraFieldsHtml = `
+      <div class="models-sheet-inline-pair">
+        <div class="config-row">
+          <label>PDF 大小上限 (MB)</label>
+          <input
+            type="number"
+            min="0.1"
+            step="0.1"
+            class="skeuo-input models-inline-number"
+            data-pdf-max-bytes
+            placeholder="如 20"
+            value="${escapeHtml(state.modelsAdvancedDrafts.pdfMaxBytesMb ?? "")}"
+          />
+        </div>
+        <div class="config-row">
+          <label>PDF 最大页数</label>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            class="skeuo-input models-inline-number"
+            data-pdf-max-pages
+            placeholder="如 60"
+            value="${escapeHtml(state.modelsAdvancedDrafts.pdfMaxPages ?? "")}"
+          />
+        </div>
+      </div>`;
+  } else if (configKey === "summarizeModel") {
+    extraFieldsHtml = `
+      <div class="config-row">
+        <label>摘要超时 (秒)</label>
+        <input
+          type="number"
+          min="1"
+          step="1"
+          class="skeuo-input models-inline-number"
+          data-summarize-timeout
+          placeholder="如 30"
+          value="${escapeHtml(state.modelsAdvancedDrafts.summarize?.timeoutSeconds ?? "")}"
+        />
+      </div>`;
+  } else if (configKey === "subagentsModel") {
+    extraFieldsHtml = `
+      <div class="config-row">
+        <label>子代理思考强度</label>
+        <select class="skeuo-input" data-subagents-thinking>
+          ${renderSelectOptions(SUBAGENT_THINKING_OPTIONS, state.modelsAdvancedDrafts.subagents?.thinking || "")}
+        </select>
+      </div>`;
+  }
+
+  const hintHtml = dedicatedDef
+    ? `<p class="form-hint" style="margin:0 0 18px;">${escapeHtml(dedicatedDef.hint)}</p>`
+    : "";
+
+  return `
+    ${hintHtml}
+    ${renderDedicatedModelEditor(configKey, draft)}
+    ${extraFieldsHtml}`;
+}
+
+function renderMemorySearchModalBody() {
+  const info = getMemorySearchFormState();
+  const isRedactedApiKey = info.apiKey === REDACTED_API_KEY_TOKEN;
+  return `
+    <div class="models-memory-toggle-strip">
+      <label class="models-toggle-row">
+        <input type="checkbox" data-memory-search-enabled ${info.enabled ? "checked" : ""} />
+        <span>启用记忆搜索</span>
+      </label>
+      <p class="models-memory-toggle-copy">关闭时不会主动清空高级配置；再次启用后仍会沿用当前记忆检索设置。</p>
+    </div>
+    <div class="models-memory-inner-row">
+      <div class="models-memory-inner-label">Embedding Provider 与模型</div>
+      <p class="models-memory-inner-hint">优先保持留空自动，只有当你需要固定到某个 embedding 通道时再手动指定。</p>
+      <div class="models-sheet-inline-pair">
+        <div class="config-row">
+          <label>Embedding Provider</label>
+          <select class="skeuo-input" data-memory-search-provider>
+            ${renderSelectOptions(MEMORY_SEARCH_PROVIDER_OPTIONS, info.provider)}
+          </select>
+          <small class="form-hint">留空时网关会按当前环境自动选择可用的 embedding provider。</small>
+        </div>
+        <div class="config-row">
+          <label>Embedding 模型</label>
+          <input
+            type="text"
+            class="skeuo-input form-control-mono"
+            data-memory-search-model
+            placeholder="如 text-embedding-3-small"
+            value="${escapeHtml(info.model)}"
+            spellcheck="false"
+          />
+        </div>
+      </div>
+    </div>
+    <div class="models-memory-inner-row">
+      <div class="models-memory-inner-label">远程端点与凭证</div>
+      <p class="models-memory-inner-hint">只有在 embedding 流量需要走自建代理或使用不同凭证时，才建议覆盖。</p>
+      <div class="config-row">
+        <label>API 端点</label>
+        <input
+          type="text"
+          class="skeuo-input form-control-mono"
+          data-memory-search-base-url
+          placeholder="https://example.com/v1 (可为空)"
+          value="${escapeHtml(info.baseUrl)}"
+          spellcheck="false"
+        />
+      </div>
+      <div class="config-row">
+        <label>API Key</label>
+        <div class="provider-secret-wrap">
+          <input
+            type="password"
+            class="provider-api-key skeuo-input models-memory-api-key"
+            data-memory-search-api-key
+            placeholder="${isRedactedApiKey ? "检测到脱敏密钥（不修改可保持原样）" : "sk-..."}"
+            autocomplete="off"
+            value="${escapeHtml(info.apiKey)}"
+          />
+          <button
+            type="button"
+            class="provider-secret-toggle"
+            data-memory-secret-toggle
+            aria-label="显示 Embedding API Key"
+            title="显示 Embedding API Key"
+          >
+            <i class="fa-regular fa-eye"></i>
+          </button>
+        </div>
+        ${isRedactedApiKey ? '<small class="form-hint">当前显示的是脱敏占位符。保持不变会沿用旧密钥，输入新值可覆盖。</small>' : '<small class="form-hint">仅在记忆搜索需要独立凭证时填写；否则保持为空，沿用全局环境变量。</small>'}
+      </div>
+    </div>
+    <div class="models-memory-inner-row">
+      <div class="models-memory-inner-label">失败回退策略</div>
+      <p class="models-memory-inner-hint">默认保守策略是 <code>none</code>。只有你明确希望 embedding 调用在主 provider 出错时自动切换，才需要配置。</p>
+      <div class="config-row">
+        <label>失败回退 Provider</label>
+        <select class="skeuo-input" data-memory-search-fallback>
+          ${renderSelectOptions(MEMORY_SEARCH_FALLBACK_OPTIONS, info.fallback)}
+        </select>
+        <small class="form-hint">默认是 <code>none</code>；只有在你希望 embedding 调用自动切换时才建议显式配置。</small>
+      </div>
+    </div>`;
+}
+
+function openAdvancedConfigModal(configKey) {
+  const def = ADVANCED_CONFIG_CHIP_DEFS.find((d) => d.key === configKey);
+  if (!def) return;
+
+  const modal = $("models-config-modal");
+  if (!modal) return;
+
+  const titleEl = $("config-modal-title");
+  const subtitleEl = $("config-modal-subtitle");
+  const bodyEl = $("config-modal-body");
+
+  if (titleEl) titleEl.textContent = def.title;
+  if (subtitleEl) {
+    const dedicatedDef = DEDICATED_MODEL_FIELDS.find((d) => d.key === configKey);
+    subtitleEl.textContent = configKey === "memorySearch"
+      ? "配置 agents.defaults.memorySearch — 控制 Embedding Provider 与记忆检索行为"
+      : (dedicatedDef?.hint || "");
+  }
+  if (bodyEl) bodyEl.innerHTML = renderAdvancedConfigModalContent(configKey);
+
+  modal.setAttribute("data-config-modal-key", configKey);
+  modal.setAttribute("aria-hidden", "false");
+  modal.classList.add("show");
+  document.body.classList.add("provider-modal-open");
+  state.configModalDirty = false;
+
+  captureModalFocus("models-config-modal", {
+    initialSelector: "#config-modal-body input, #config-modal-body select, #config-modal-body textarea"
+  });
+}
+
+async function closeAdvancedConfigModal({ force = false } = {}) {
+  const modal = $("models-config-modal");
+  if (!modal) return;
+
+  if (!force && state.configModalDirty) {
+    const shouldClose = await requestConfirmDialog({
+      title: "有未保存的修改",
+      message: "当前配置已修改，关闭后修改会保留在草稿中。点击顶部「保存并应用」后生效。确定关闭？",
+      confirmText: "关闭",
+      cancelText: "继续编辑",
+      variant: "primary"
+    });
+    if (!shouldClose) return;
+  }
+
+  // sync draft state from modal DOM before closing
+  state.modelsAdvancedDrafts = buildModelsAdvancedDraftsFromDom();
+
+  const wasDirty = state.configModalDirty;
+  state.configModalDirty = false;
+
+  releaseModalFocus("models-config-modal");
+
+  modal.classList.remove("show");
+  modal.setAttribute("aria-hidden", "true");
+  modal.removeAttribute("data-config-modal-key");
+  document.body.classList.remove("provider-modal-open");
+
+  // re-render grid chips to reflect updated values
+  const detail = document.querySelector("[data-models-advanced-detail]");
+  const gridContainer = detail?.querySelector(".adv-config-grid");
+  if (gridContainer) {
+    const newGrid = document.createElement("div");
+    newGrid.innerHTML = renderAdvancedConfigGrid();
+    gridContainer.replaceWith(newGrid.firstElementChild);
+  } else {
+    renderModelsAdvancedPanels();
+  }
+
+  if (wasDirty) {
+    showToast("配置已修改，点击顶部「保存并应用」后生效", "success");
+  }
+}
+
+function mergeManagedConfigFields(base, managedEntries) {
+  const source = cloneOptionalConfigObject(base) || {};
+  for (const key of Object.keys(managedEntries || {})) {
+    delete source[key];
+  }
+  for (const [key, value] of Object.entries(managedEntries || {})) {
+    if (value === null || value === undefined || value === "") continue;
+    source[key] = value;
+  }
+  return Object.keys(source).length > 0 ? source : null;
+}
+
+function buildMemorySearchDraft(base, managed) {
+  const source = cloneOptionalConfigObject(base) || {};
+  const remote = source.remote && typeof source.remote === "object" && !Array.isArray(source.remote)
+    ? cloneProviderConfig(source.remote)
+    : {};
+  delete source.enabled;
+  delete source.provider;
+  delete source.model;
+  delete source.fallback;
+  delete source.remote;
+  delete remote.baseUrl;
+  delete remote.apiKey;
+
+  const provider = toTrimmedString(managed?.provider);
+  const model = toTrimmedString(managed?.model);
+  const baseUrl = toTrimmedString(managed?.baseUrl);
+  const apiKey = toTrimmedString(managed?.apiKey);
+  const fallback = toTrimmedString(managed?.fallback);
+  const shouldMaterialize = Boolean(
+    managed?.enabled
+    || provider
+    || model
+    || baseUrl
+    || apiKey
+    || fallback
+    || Object.keys(source).length > 0
+    || Object.keys(remote).length > 0
+  );
+
+  if (!shouldMaterialize) return null;
+
+  source.enabled = managed?.enabled === true;
+  if (provider && provider !== "auto") source.provider = provider;
+  if (model) source.model = model;
+  if (fallback) source.fallback = fallback;
+  if (baseUrl) remote.baseUrl = baseUrl;
+  if (apiKey && apiKey !== REDACTED_API_KEY_TOKEN) {
+    remote.apiKey = apiKey;
+  }
+  if (Object.keys(remote).length > 0) {
+    source.remote = remote;
+  }
+  return Object.keys(source).length > 0 ? source : null;
+}
+
+function readDedicatedModelDraftFromDom(modelKey) {
+  const root = document.querySelector(`[data-agent-model-editor="${modelKey}"]`);
+  if (!root) return getManagedDedicatedModelDraft(modelKey);
+  const primary = root.querySelector(`[data-agent-model-primary="${modelKey}"]`)?.value.trim() || "";
+  const fallbacks = Array.from(root.querySelectorAll(`[data-agent-model-fallback="${modelKey}"]`))
+    .map((input) => input.value.trim())
+    .filter(Boolean);
+  return cloneAgentModelConfig({ primary, fallbacks });
+}
+
+function buildModelsAdvancedDraftsFromDom() {
+  return {
+    imageModel: readDedicatedModelDraftFromDom("imageModel"),
+    imageGenerationModel: readDedicatedModelDraftFromDom("imageGenerationModel"),
+    pdfModel: readDedicatedModelDraftFromDom("pdfModel"),
+    pdfMaxBytesMb: normalizeOptionalPositiveNumber(document.querySelector("[data-pdf-max-bytes]")?.value),
+    pdfMaxPages: normalizeOptionalPositiveInteger(document.querySelector("[data-pdf-max-pages]")?.value),
+    summarize: mergeManagedConfigFields(state.modelsAdvancedDrafts.summarize, {
+      model: readDedicatedModelDraftFromDom("summarizeModel"),
+      timeoutSeconds: normalizeOptionalPositiveInteger(document.querySelector("[data-summarize-timeout]")?.value)
+    }),
+    subagents: mergeManagedConfigFields(state.modelsAdvancedDrafts.subagents, {
+      model: readDedicatedModelDraftFromDom("subagentsModel"),
+      thinking: toTrimmedString(document.querySelector("[data-subagents-thinking]")?.value)
+    }),
+    memorySearch: buildMemorySearchDraft(state.modelsAdvancedDrafts.memorySearch, {
+      enabled: document.querySelector("[data-memory-search-enabled]")?.checked === true,
+      provider: document.querySelector("[data-memory-search-provider]")?.value,
+      model: document.querySelector("[data-memory-search-model]")?.value,
+      baseUrl: document.querySelector("[data-memory-search-base-url]")?.value,
+      apiKey: document.querySelector("[data-memory-search-api-key]")?.value,
+      fallback: document.querySelector("[data-memory-search-fallback]")?.value
+    })
+  };
+}
+
+function syncModelsAdvancedDraftsFromDom() {
+  // sync when the detail panel is visible OR when the config modal is open
+  const hasDetail = !!document.querySelector("[data-models-advanced-detail]");
+  const hasModal = $("models-config-modal")?.classList.contains("show");
+  if (!$("models-advanced-panel") || (!hasDetail && !hasModal)) return;
+  state.modelsAdvancedDrafts = buildModelsAdvancedDraftsFromDom();
+}
+
+function renderModelsAdvancedPanels() {
+  const container = $("models-advanced-panel");
+  if (!container) return;
+  container.innerHTML = `
+    <section class="glass-panel models-advanced-card ${state.modelsAdvancedExpanded ? "open" : ""}" data-spotlight>
+      ${renderModelsAdvancedSummary()}
+      ${renderModelsAdvancedDetail()}
+    </section>
+  `;
+  renderModelRefDatalist();
+}
+
 function renderModelsBaseLayout() {
   const container = $("models-content");
   if (!container) return false;
@@ -2070,6 +2838,23 @@ function renderModelsBaseLayout() {
     <div id="models-policy-summary" class="models-policy-summary"></div>
     <div class="provider-matrix-wrapper provider-matrix-wrapper-compact">
       <div id="models-provider-matrix" class="provider-matrix-grid"></div>
+    </div>
+    <div class="models-config-stack">
+      <div id="models-advanced-panel"></div>
+    </div>
+    <datalist id="models-ref-options"></datalist>
+    <div id="models-config-modal" class="provider-modal-shell" aria-hidden="true">
+      <div class="provider-modal-backdrop" data-config-modal-close></div>
+      <div class="provider-modal-panel">
+        <div class="provider-modal-head">
+          <div>
+            <h3 id="config-modal-title" class="provider-modal-title"></h3>
+            <p id="config-modal-subtitle" class="provider-modal-subtitle"></p>
+          </div>
+          <button class="provider-modal-close" data-config-modal-close aria-label="关闭">×</button>
+        </div>
+        <div class="provider-modal-body" id="config-modal-body" style="padding:24px 30px;overflow-y:auto;"></div>
+      </div>
     </div>
   `;
   return true;
@@ -2113,6 +2898,7 @@ function renderModelsPolicySummary() {
 }
 
 function renderModelsDraftSurface() {
+  syncModelsAdvancedDraftsFromDom();
   renderModelsBaseLayout();
   if (Object.keys(state.modelProvidersDraft || {}).length === 0) {
     clearModelsPolicySummary();
@@ -2120,12 +2906,14 @@ function renderModelsDraftSurface() {
     renderModelsPolicySummary();
   }
   renderProviderMatrix(state.modelProvidersDraft);
+  renderModelsAdvancedPanels();
 }
 
 function applyLoadedModelsData(data) {
   state.modelsHash = data.configHash;
   state.deletedModelProviderKeys = new Set();
   state.deletedAllowlistModelRefs = new Set();
+  state.modelsAdvancedExpanded = false;
 
   const cfg = data.modelsConfig || {};
   const providers = cfg.providers || {};
@@ -2135,6 +2923,16 @@ function applyLoadedModelsData(data) {
   }
   state.agentsDefaultsModelsDraft = cloneAgentModelsConfig(data.agentsDefaultsModels || {});
   state.agentsDefaultModelDraft = cloneAgentDefaultModelConfig(data.agentsDefaultModel);
+  state.modelsAdvancedDrafts = {
+    imageModel: cloneAgentModelConfig(data.imageModel),
+    imageGenerationModel: cloneAgentModelConfig(data.imageGenerationModel),
+    pdfModel: cloneAgentModelConfig(data.pdfModel),
+    pdfMaxBytesMb: normalizeOptionalPositiveNumber(data.pdfMaxBytesMb),
+    pdfMaxPages: normalizeOptionalPositiveInteger(data.pdfMaxPages),
+    summarize: cloneOptionalConfigObject(data.summarize),
+    subagents: cloneOptionalConfigObject(data.subagents),
+    memorySearch: cloneMemorySearchConfig(data.memorySearch)
+  };
 
   renderProviderEditor("", {}, "");
   renderModelsDraftSurface();
@@ -2539,6 +3337,21 @@ function buildProvidersPatchForSave(providers, deletedKeys = []) {
   return sanitized;
 }
 
+function sanitizeMemorySearchForSave(value) {
+  const sanitized = cloneMemorySearchConfig(value);
+  if (!sanitized) return null;
+  if (sanitized.remote && typeof sanitized.remote === "object" && !Array.isArray(sanitized.remote)) {
+    const apiKey = typeof sanitized.remote.apiKey === "string" ? sanitized.remote.apiKey.trim() : "";
+    if (!apiKey || apiKey === REDACTED_API_KEY_TOKEN) {
+      delete sanitized.remote.apiKey;
+    }
+    if (Object.keys(sanitized.remote).length === 0) {
+      delete sanitized.remote;
+    }
+  }
+  return Object.keys(sanitized).length > 0 ? sanitized : null;
+}
+
 function syncProviderJsonFromForm(card) {
   if (!card || card.dataset.jsonSyncLock === "1") return;
   const jsonInput = card.querySelector(".provider-json-config");
@@ -2780,6 +3593,8 @@ async function saveModels() {
       return;
     }
 
+    syncModelsAdvancedDraftsFromDom();
+
     const providers = buildProvidersPatchForSave(
       state.modelProvidersDraft,
       Array.from(state.deletedModelProviderKeys)
@@ -2789,22 +3604,44 @@ async function saveModels() {
       Array.from(state.deletedAllowlistModelRefs)
     );
 
-    if (
-      Object.keys(state.modelProvidersDraft).length === 0
-      && state.deletedModelProviderKeys.size === 0
-    ) {
-      showToast("没有任何 Provider 数据！", "error");
-      return;
-    }
-
     const payload = {
       models: {
         providers
       },
       agentsDefaultsModels,
       agentsDefaultModel: cloneAgentDefaultModelConfig(state.agentsDefaultModelDraft),
+      imageModel: cloneAgentModelConfig(state.modelsAdvancedDrafts.imageModel),
+      imageGenerationModel: cloneAgentModelConfig(state.modelsAdvancedDrafts.imageGenerationModel),
+      pdfModel: cloneAgentModelConfig(state.modelsAdvancedDrafts.pdfModel),
+      pdfMaxBytesMb: normalizeOptionalPositiveNumber(state.modelsAdvancedDrafts.pdfMaxBytesMb),
+      pdfMaxPages: normalizeOptionalPositiveInteger(state.modelsAdvancedDrafts.pdfMaxPages),
+      summarize: cloneOptionalConfigObject(state.modelsAdvancedDrafts.summarize),
+      subagents: cloneOptionalConfigObject(state.modelsAdvancedDrafts.subagents),
+      memorySearch: sanitizeMemorySearchForSave(state.modelsAdvancedDrafts.memorySearch),
       baseHash: state.modelsHash
     };
+
+    const hasAnyModelsChange = Boolean(
+      Object.keys(state.modelProvidersDraft).length > 0
+      || state.deletedModelProviderKeys.size > 0
+      || Object.keys(state.agentsDefaultsModelsDraft).length > 0
+      || state.deletedAllowlistModelRefs.size > 0
+      || cloneAgentDefaultModelConfig(state.agentsDefaultModelDraft)
+      || payload.imageModel
+      || payload.imageGenerationModel
+      || payload.pdfModel
+      || payload.pdfMaxBytesMb !== null
+      || payload.pdfMaxPages !== null
+      || payload.summarize
+      || payload.subagents
+      || payload.memorySearch
+    );
+
+    if (!hasAnyModelsChange) {
+      showToast("当前没有可保存的模型配置改动", "warning");
+      return;
+    }
+
     expectedModelsState = captureExpectedModelsState();
 
     const btn = $("models-save");
@@ -7228,7 +8065,56 @@ function bindEvents() {
   });
 
   const modelsContent = $("models-content");
-  modelsContent?.addEventListener("click", (event) => {
+  modelsContent?.addEventListener("click", async (event) => {
+    if (event.target.closest("[data-models-advanced-toggle]")) {
+      syncModelsAdvancedDraftsFromDom();
+      state.modelsAdvancedExpanded = !state.modelsAdvancedExpanded;
+      renderModelsAdvancedPanels();
+      return;
+    }
+
+    const addFallbackBtn = event.target.closest("[data-agent-model-add-fallback]");
+    if (addFallbackBtn) {
+      const modelKey = addFallbackBtn.getAttribute("data-agent-model-add-fallback") || "";
+      const list = document.querySelector(`[data-agent-model-fallback-list="${modelKey}"]`);
+      const nextIndex = list?.querySelectorAll(`[data-agent-model-row="${modelKey}"]`).length || 0;
+      list?.insertAdjacentHTML("beforeend", dedicatedModelFallbackRowTemplate(modelKey, "", nextIndex));
+      list?.querySelector(`[data-agent-model-row="${modelKey}"]:last-child input`)?.focus();
+      syncModelsAdvancedDraftsFromDom();
+      return;
+    }
+
+    const removeFallbackBtn = event.target.closest("[data-agent-model-remove-fallback]");
+    if (removeFallbackBtn) {
+      const confirmed = await requestConfirmDialog({
+        title: "删除备选模型",
+        message: "确定删除此备选模型吗？",
+        confirmText: "确认删除",
+        cancelText: "取消",
+        variant: "danger"
+      });
+      if (!confirmed) return;
+      const row = removeFallbackBtn.closest("[data-agent-model-row]");
+      row?.remove();
+      state.configModalDirty = true;
+      syncModelsAdvancedDraftsFromDom();
+      return;
+    }
+
+    const memorySecretToggle = event.target.closest("[data-memory-secret-toggle]");
+    if (memorySecretToggle) {
+      const input = document.querySelector("[data-memory-search-api-key]");
+      if (!input) return;
+      const reveal = input.type === "password";
+      input.type = reveal ? "text" : "password";
+      memorySecretToggle.classList.toggle("active", reveal);
+      memorySecretToggle.setAttribute("aria-label", reveal ? "隐藏 Embedding API Key" : "显示 Embedding API Key");
+      memorySecretToggle.setAttribute("title", reveal ? "隐藏 Embedding API Key" : "显示 Embedding API Key");
+      const icon = memorySecretToggle.querySelector("i");
+      if (icon) icon.className = reveal ? "fa-regular fa-eye-slash" : "fa-regular fa-eye";
+      return;
+    }
+
     if (event.target.closest("[data-provider-matrix-add]")) {
       openProviderModal({ mode: "create" });
       return;
@@ -7238,7 +8124,31 @@ function bindEvents() {
     if (card) {
       const providerKey = card.getAttribute("data-provider-key") || "";
       openProviderModal({ mode: "edit", providerKey });
+      return;
     }
+
+    const advConfigCard = event.target.closest("[data-advanced-config-card]");
+    if (advConfigCard) {
+      openAdvancedConfigModal(advConfigCard.getAttribute("data-advanced-config-card") || "");
+      return;
+    }
+
+    if (event.target.closest("[data-config-modal-close]")) {
+      await closeAdvancedConfigModal();
+      return;
+    }
+  });
+
+  modelsContent?.addEventListener("input", (event) => {
+    if (!event.target.closest(".models-config-stack") && !event.target.closest("#models-config-modal")) return;
+    if (event.target.closest("#models-config-modal")) state.configModalDirty = true;
+    syncModelsAdvancedDraftsFromDom();
+  });
+
+  modelsContent?.addEventListener("change", (event) => {
+    if (!event.target.closest(".models-config-stack") && !event.target.closest("#models-config-modal")) return;
+    if (event.target.closest("#models-config-modal")) state.configModalDirty = true;
+    syncModelsAdvancedDraftsFromDom();
   });
 
   const providerModal = $("models-provider-modal");
@@ -7285,6 +8195,11 @@ function bindEvents() {
     if (state.currentView === "chat" && state.chat.mobileSessionsOpen) {
       event.preventDefault();
       toggleChatSessionsPanel(false);
+      return;
+    }
+    if ($("models-config-modal")?.classList.contains("show")) {
+      event.preventDefault();
+      await closeAdvancedConfigModal();
       return;
     }
     if (!state.providerModalOpen) return;
