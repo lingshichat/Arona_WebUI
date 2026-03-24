@@ -68,6 +68,15 @@ jobs:
           详见 [README](https://github.com/lingshichat/Arona_WebUI#readme)。
           EOF
 
+          RELEASE_NOTES_FILE=".github/release-notes/${CURRENT_TAG}.md"
+          if [ -f "${RELEASE_NOTES_FILE}" ]; then
+            {
+              echo
+              cat "${RELEASE_NOTES_FILE}"
+              echo
+            } >> release-body.md
+          fi
+
           {
             echo
             echo "## Changelog / 更新日志"
