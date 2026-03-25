@@ -113,6 +113,44 @@ function requestConfirmDialog({ title, message, confirmText, cancelText, variant
   - “保存后会更新默认模型”
 - 这类说明比把控件做成复杂视觉形态更重要
 
+### 5. Global form-control enhancement pattern
+
+当后台表单需要把原生 `<select>` 或 `<input type="number">` 升级为统一视觉控件时，遵循当前模型管理页的“增强原生控件”模式，而不是在每个模板里手写完整的自定义 DOM：
+
+- 原生控件仍然是**值的唯一真实来源**；自定义壳体只负责展示和交互。
+- 通过全局增强器在渲染后包裹控件：
+  - `select` → `.select-field-shell` + `.select-display` + `.select-dropdown`
+  - `input[type="number"]` → `.number-field-shell` + `.number-stepper`
+- 使用事件委托和 `data-*` 标记，而不是给每个字段单独绑监听：
+  - `data-select-toggle`
+  - `data-select-option`
+  - `data-number-step`
+- 程序化修改值后，必须继续派发 `input` 和 `change`，这样已有的脏检测、保存链路和 helper 行为才能复用。
+- 只增强单选下拉；`multiple` 或 `size > 1` 的原生 `select` 保持原样。
+- 遇到已经包裹过的控件，要用 `data-select-enhanced` / `data-number-enhanced` 这类标记防止重复增强。
+
+```js
+function enhanceSelectInput(select) {
+  if (!(select instanceof HTMLSelectElement)) return;
+  if (select.dataset.selectEnhanced === "true") return;
+  if (select.multiple || Number(select.size || 0) > 1) return;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "select-field-shell";
+  // 省略：插入 .select-display / .select-dropdown
+
+  select.classList.add("select-native");
+  select.tabIndex = -1;
+  select.dataset.selectEnhanced = "true";
+  select.addEventListener("change", () => syncCustomSelect(select));
+}
+```
+
+**Why**:
+- 模板仍然保持“输出原生表单结构”的可读性
+- 统一交互由一套增强器接管，后续改样式或交互时不会散落在多个 modal 模板里
+- 保留原生控件有利于状态同步、保存逻辑复用和可访问性兜底
+
 ---
 
 ## 样式约定
@@ -144,3 +182,4 @@ function requestConfirmDialog({ title, message, confirmText, cancelText, variant
 - **不要在 `innerHTML` 中使用未经 `sanitizeMarkdownHref()` 验证的链接**
 - **不要使用 `document.write()`**：所有内容通过 `innerHTML` 或 `insertAdjacentHTML` 插入
 - **不要创建全局变量**：所有状态集中在 `state` 对象或模块级 `const`/`let` 中
+- **不要在模板字符串里直接复制一整套自定义下拉 DOM**：优先输出原生 `select`，再让全局增强器统一包裹和接管交互

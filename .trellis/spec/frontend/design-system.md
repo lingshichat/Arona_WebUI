@@ -111,6 +111,25 @@ Use shared button classes for interaction states. Only add local styles for spac
   - field rows for raw values
   - a separate options / policy row for toggles and secondary choices
 
+### Single-line admin controls
+- Single-line admin controls should share the same geometry in both themes:
+  - height / min-height: `48px`
+  - border radius: `12px`
+  - horizontal padding: `16px`
+- This applies to:
+  - `input.skeuo-input`
+  - custom select trigger `.select-display`
+  - number fields enhanced by `.number-field-shell`
+- Light theme may change surface, border, and shadow language, but should not silently change the geometry. If a control feels taller or thinner in light mode, treat it as a regression.
+
+> **Warning**: custom select triggers implemented with `<button>` must explicitly set `appearance: none`, `-webkit-appearance: none`, `box-sizing: border-box`, and an explicit height/min-height.
+>
+> Otherwise browser-native button chrome will leak back in and the select will end up taller than adjacent inputs even if the visual CSS looks “the same”.
+
+> **Warning**: when re-skinning `.skeuo-input`, match or exceed the specificity of the base `input:not([type="checkbox"]):not([type="radio"])` rule.
+>
+> Prefer selectors like `input.skeuo-input:not([type="checkbox"]):not([type="radio"])` instead of `.skeuo-input` alone; otherwise the generic form rule can silently win and revert padding, radius, and shadows.
+
 ---
 
 ## Motion Contract
